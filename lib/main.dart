@@ -5,7 +5,6 @@ import 'package:widmate/app/app.dart';
 import 'package:widmate/features/shared_content/services/shared_content_service.dart';
 import 'package:widmate/features/downloads/domain/services/download_service.dart';
 import 'package:widmate/features/clipboard/services/clipboard_monitor_service.dart';
-import 'package:widmate/features/splash/presentation/pages/splash_screen.dart';
 import 'package:widmate/core/services/background_download_service.dart';
 import 'package:widmate/core/errors/app_errors.dart';
 import 'package:widmate/core/services/logger_service.dart';
@@ -82,6 +81,8 @@ class AppInitializer {
 }
 
 Future<void> main() async {
+  runApp(const Center(child: CircularProgressIndicator())); // Show loading indicator
+
   try {
     Logger.info('Starting WidMate application');
     WidgetsFlutterBinding.ensureInitialized();
@@ -94,33 +95,14 @@ Future<void> main() async {
       observers: [ProviderLogger()],
     );
 
-    // Run the app with a splash that waits for services
+    // Initialize services
+    await AppInitializer(container).init();
+
+    // Run the app
     runApp(
-      MaterialApp(
-        home: ProviderScope(
-          parent: container,
-          child: SplashScreen(
-            duration: const Duration(seconds: 3),
-            nextScreen: FutureBuilder<void>(
-              future: AppInitializer(container).init(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Scaffold(
-                    body: Center(child: CircularProgressIndicator()),
-                  );
-                } else if (snapshot.hasError) {
-                  final appError = ErrorFactory.fromException(
-                    snapshot.error!,
-                    snapshot.stackTrace,
-                  );
-                  appError.log();
-                  return _ErrorScreen(appError: appError);
-                }
-                return const App();
-              },
-            ),
-          ),
-        ),
+      UncontrolledProviderScope(
+        container: container,
+        child: const App(),
       ),
     );
 
@@ -129,7 +111,7 @@ Future<void> main() async {
     final appError = ErrorFactory.fromException(e, stackTrace);
     appError.log();
 
-    runApp(MaterialApp(home: _ErrorScreen(appError: appError)));
+    runApp(_ErrorScreen(appError: appError));
   }
 }
 
@@ -140,38 +122,32 @@ class _ErrorScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error, size: 64, color: Colors.red),
-              const SizedBox(height: 16),
-              const Text(
-                'Error initializing app',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(appError.message,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.grey)),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.refresh),
-                onPressed: () => main(),
-                label: const Text('Retry'),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.arrow_forward),
-                onPressed: () {
-                  runApp(const App()); // Start app without services
-                },
-                label: const Text('Continue Anyway'),
-              ),
-            ],
+    return MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                const Text(
+                  'Error initializing app',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(appError.message,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.grey)),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: () => main(),
+                  label: const Text('Retry'),
+                ),
+              ],
+            ),
           ),
         ),
       ),

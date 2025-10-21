@@ -14,18 +14,16 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        
+
+        // Initialize the service immediately
+        initializeBackgroundService()
+
         // Initialize method channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channel).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "initialize" -> {
-                    initializeBackgroundService()
-                    result.success(null)
-                }
-                else -> result.notImplemented()
-            }
+            // Method calls can be handled here if needed in the future
+            result.notImplemented()
         }
-        
+
         // Initialize event channel
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, eventChannel).setStreamHandler(
             object : EventChannel.StreamHandler {
@@ -36,17 +34,17 @@ class MainActivity : FlutterActivity() {
                         events!!
                     )
                 }
-                
+
                 override fun onCancel(arguments: Any?) {
                     eventSink = null
                 }
             }
         )
     }
-    
+
     private fun initializeBackgroundService() {
+        backgroundService = BackgroundDownloadService()
         val serviceIntent = Intent(this, BackgroundDownloadService::class.java)
         startForegroundService(serviceIntent)
-        backgroundService = BackgroundDownloadService()
     }
 }
