@@ -1,0 +1,131 @@
+{
+  "@@locale": "en",
+  "appName": "WidMate",
+  "@appName": {
+    "description": "The name of the application"
+  },
+  "loading": "Loading...",
+  "@loading": {
+    "description": "Text shown during loading operations"
+  },
+  "error": "Error",
+  "@error": {
+    "description": "General error message"
+  },
+  "success": "Success",
+  "@success": {
+    "description": "General success message"
+  },
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Cancel button text"
+  },
+  "save": "Save",
+  "@save": {
+    "description": "Save button text"
+  },
+  "ok": "OK",
+  "@ok": {
+    "description": "OK button text"
+  },
+  "yes": "Yes",
+  "@yes": {
+    "description": "Yes button text"
+  },
+  "no": "No",
+  "@no": {
+    "description": "No button text"
+  },
+  "homeTitle": "Home",
+  "@homeTitle": {
+    "description": "Title for the home screen"
+  },
+  "downloadsTitle": "Downloads",
+  "@downloadsTitle": {
+    "description": "Title for the downloads screen"
+  },
+  "settingsTitle": "Settings",
+  "@settingsTitle": {
+    "description": "Title for the settings screen"
+  },
+  "aboutTitle": "About",
+  "@aboutTitle": {
+    "description": "Title for the about screen"
+  },
+  "enterUrl": "Enter URL",
+  "@enterUrl": {
+    "description": "Placeholder for URL input field"
+  },
+  "download": "Download",
+  "@download": {
+    "description": "Download button text"
+  },
+  "invalidUrl": "Invalid URL",
+  "@invalidUrl": {
+    "description": "Error message for invalid URL"
+  },
+  "noDownloads": "No downloads yet",
+  "@noDownloads": {
+    "description": "Message shown when there are no downloads"
+  },
+  "downloadComplete": "Download complete",
+  "@downloadComplete": {
+    "description": "Message shown when download is complete"
+  },
+  "downloadFailed": "Download failed",
+  "@downloadFailed": {
+    "description": "Message shown when download fails"
+  },
+  "downloadInProgress": "Downloading...",
+  "@downloadInProgress": {
+    "description": "Message shown when download is in progress"
+  },
+  "generalSettings": "General Settings",
+  "@generalSettings": {
+    "description": "Title for general settings section"
+  },
+  "downloadSettings": "Download Settings",
+  "@downloadSettings": {
+    "description": "Title for download settings section"
+  },
+  "appearanceSettings": "Appearance",
+  "@appearanceSettings": {
+    "description": "Title for appearance settings section"
+  },
+  "darkMode": "Dark Mode",
+  "@darkMode": {
+    "description": "Label for dark mode setting"
+  },
+  "language": "Language",
+  "@language": {
+    "description": "Label for language setting"
+  },
+  "downloadFolder": "Download Folder",
+  "@downloadFolder": {
+    "description": "Label for download folder setting"
+  },
+  "concurrentDownloads": "Concurrent Downloads",
+  "@concurrentDownloads": {
+    "description": "Label for concurrent downloads setting"
+  },
+  "version": "Version",
+  "@version": {
+    "description": "Label for app version"
+  },
+  "aboutDescription": "WidMate is a video downloader application for personal use only.",
+  "@aboutDescription": {
+    "description": "Description of the app in the about page"
+  },
+  "disclaimer": "For personal use only. Do not use this application to download copyrighted content without permission.",
+  "@disclaimer": {
+    "description": "Legal disclaimer text"
+  },
+  "videoLinkDetected": "Video link detected",
+  "@videoLinkDetected": {
+    "description": "Message shown when a video link is detected in clipboard"
+  },
+  "downloadThisVideo": "Download this video?",
+  "@downloadThisVideo": {
+    "description": "Prompt asking if user wants to download detected video"
+  }
+}

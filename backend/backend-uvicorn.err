@@ -1,0 +1,10 @@
+INFO:     Will watch for changes in these directories: ['E:\\New folder\\WidMate\\backend']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [12432] using StatReload
+E:\New folder\WidMate\backend\main.py:22: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+INFO:     Started server process [11064]
+INFO:     Waiting for application startup.
+2025-09-18 13:59:34.893 | INFO     | main:startup_event:46 - yt-dlp version check on startup: current=2025.9.5, latest=2025.9.5
+2025-09-18 13:59:34.897 | INFO     | main:startup_event:50 - yt-dlp is up to date: 2025.9.5
+INFO:     Application startup complete.

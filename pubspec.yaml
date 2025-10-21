@@ -1,0 +1,80 @@
+name: widmate
+description: A powerful video downloader and media player app
+publish_to: 'none'
+version: 1.0.0+1
+
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management
+  flutter_riverpod: ^2.4.9
+  riverpod_annotation: ^2.3.3
+  hooks_riverpod: ^2.4.9
+  riverpod_generator: ^2.3.9
+
+  # UI Components
+  cupertino_icons: ^1.0.6
+  cached_network_image: ^3.3.1
+  flutter_localizations:
+    sdk: flutter
+
+  # Navigation
+  go_router: ^14.2.7
+
+  # Local Storage
+  shared_preferences: ^2.2.2
+  path_provider: ^2.1.2
+
+  # Network
+  http: ^1.2.1
+
+  # File Operations
+  path: ^1.8.3
+  mime: ^1.0.4
+  file: ^6.1.4
+
+  # Background Services
+  flutter_background_service: ^5.0.5
+  flutter_local_notifications: ^17.2.3
+  
+  # Sharing
+  share_plus: ^12.0.0
+  
+  # Utilities
+  uuid: ^4.3.3
+  cross_file: ^0.3.4+1
+  connectivity_plus: ^6.0.5
+  package_info_plus: ^8.0.0
+  intl: ^0.20.2
+  url_launcher: ^6.2.5
+  
+  # Media Player
+  video_player: ^2.8.2
+  just_audio: ^0.9.36
+  audio_service: ^0.18.12
+  audio_session: ^0.1.16
+  file_picker: ^10.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^3.0.0
+  build_runner: ^2.4.7
+
+flutter:
+  uses-material-design: true
+
+  # App Icon
+  assets:
+    - assets/icons/

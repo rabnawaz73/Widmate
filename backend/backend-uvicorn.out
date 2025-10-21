@@ -1,0 +1,2 @@
+INFO:     127.0.0.1:57363 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57400 - "GET /docs HTTP/1.1" 200 OK

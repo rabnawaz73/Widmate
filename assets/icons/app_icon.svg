@@ -1,0 +1,44 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="playGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6b6b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ee5a24;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="downloadGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4ecdc4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#44a08d;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="url(#bgGradient)" stroke="#ffffff" stroke-width="8"/>
+  
+  <!-- Inner circle for depth -->
+  <circle cx="256" cy="256" r="200" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.3"/>
+  
+  <!-- Play button (main element) -->
+  <path d="M 200 160 L 200 352 L 320 256 Z" fill="url(#playGradient)" stroke="#ffffff" stroke-width="4"/>
+  
+  <!-- Download arrow -->
+  <path d="M 320 180 L 320 220 M 300 200 L 320 180 L 340 200" stroke="url(#downloadGradient)" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 320 220 L 320 280 M 300 260 L 320 280 L 340 260" stroke="url(#downloadGradient)" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Media waves (audio representation) -->
+  <path d="M 120 320 Q 140 300 160 320 Q 180 340 200 320" stroke="#ffffff" stroke-width="4" fill="none" opacity="0.8"/>
+  <path d="M 120 340 Q 140 320 160 340 Q 180 360 200 340" stroke="#ffffff" stroke-width="4" fill="none" opacity="0.6"/>
+  <path d="M 120 360 Q 140 340 160 360 Q 180 380 200 360" stroke="#ffffff" stroke-width="4" fill="none" opacity="0.4"/>
+  
+  <!-- Video frame corners -->
+  <rect x="180" y="140" width="8" height="8" fill="#ffffff" opacity="0.8"/>
+  <rect x="332" y="140" width="8" height="8" fill="#ffffff" opacity="0.8"/>
+  <rect x="180" y="364" width="8" height="8" fill="#ffffff" opacity="0.8"/>
+  <rect x="332" y="364" width="8" height="8" fill="#ffffff" opacity="0.8"/>
+  
+  <!-- App name "W" -->
+  <text x="256" y="420" font-family="Arial, sans-serif" font-size="48" font-weight="bold" text-anchor="middle" fill="#ffffff" opacity="0.9">W</text>
+</svg>

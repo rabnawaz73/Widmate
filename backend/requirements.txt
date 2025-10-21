@@ -1,0 +1,9 @@
+fastapi>=0.104.1
+uvicorn>=0.37.0
+yt-dlp>=2024.07.25
+python-multipart>=0.0.20
+aiofiles>=24.1.0
+loguru>=0.7.3
+requests==2.32.3
+psutil>=5.9.8
+pydantic>=1.10.0,<2.0.0
