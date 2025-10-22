@@ -59,10 +59,13 @@ dependencies:
   audio_service: ^0.18.12
   audio_session: ^0.1.16
   file_picker: ^10.3.3
+  flutter_cache_manager: ^3.3.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
+  flutter_launcher_icons: ^0.13.1
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

@@ -4,19 +4,25 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
-import 'package:widmate/features/downloads/domain/models/download_item.dart';
-import 'package:widmate/features/downloads/domain/models/download_events.dart';
+import 'package:widmate/features/downloads/domain/models/download_item.dart'
+    as model;
+import 'package:widmate/features/downloads/domain/models/download_events.dart'
+    as model;
 import 'package:widmate/features/downloads/data/repositories/download_repository.dart';
 import 'package:widmate/app/src/services/notification_service.dart';
 import 'package:widmate/core/constants/app_constants.dart';
 import 'package:widmate/core/errors/app_errors.dart';
 import 'package:widmate/core/services/logger_service.dart';
+import 'package:widmate/core/services/video_download_service.dart';
 import 'package:widmate/core/utils/validation_utils.dart';
+import 'package:widmate/core/providers/video_download_provider.dart';
 
 final downloadServiceProvider = Provider<DownloadService>((ref) {
   final downloadRepository = ref.watch(downloadRepositoryProvider);
   final notificationService = ref.watch(notificationServiceProvider);
-  return DownloadService(downloadRepository, notificationService);
+  final videoDownloadService = ref.watch(videoDownloadServiceProvider);
+  return DownloadService(
+      downloadRepository, notificationService, videoDownloadService);
 });
 
 // Download events are imported from models
@@ -24,53 +30,57 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
 class DownloadService {
   final DownloadRepository _downloadRepository;
   final NotificationService _notificationService;
+  final VideoDownloadService _videoDownloadService;
   final Map<String, dynamic> _activeDownloads = {};
   final _maxConcurrentDownloads = AppConstants.maxConcurrentDownloads;
-  final _downloadEventsController = StreamController<DownloadEvent>.broadcast();
+  final _downloadEventsController =
+      StreamController<model.DownloadEvent>.broadcast();
 
-  Stream<DownloadEvent> get downloadEvents => _downloadEventsController.stream;
+  Stream<model.DownloadEvent> get downloadEvents =>
+      _downloadEventsController.stream;
 
-  DownloadService(this._downloadRepository, this._notificationService);
+  DownloadService(this._downloadRepository, this._notificationService,
+      this._videoDownloadService);
 
   // Get all downloads
-  Future<List<DownloadItem>> getAllDownloads() async {
+  Future<List<model.DownloadItem>> getAllDownloads() async {
     return await _downloadRepository.getAllDownloads();
   }
 
   // Get active downloads
-  Future<List<DownloadItem>> getActiveDownloads() async {
+  Future<List<model.DownloadItem>> getActiveDownloads() async {
     final downloads = await _downloadRepository.getAllDownloads();
     return downloads
         .where(
           (download) =>
-              download.status == DownloadStatus.downloading ||
-              download.status == DownloadStatus.queued,
+              download.status == model.DownloadStatus.downloading ||
+              download.status == model.DownloadStatus.queued,
         )
         .toList();
   }
 
   // Get completed downloads
-  Future<List<DownloadItem>> getCompletedDownloads() async {
+  Future<List<model.DownloadItem>> getCompletedDownloads() async {
     final downloads = await _downloadRepository.getAllDownloads();
     return downloads
-        .where((download) => download.status == DownloadStatus.completed)
+        .where((download) => download.status == model.DownloadStatus.completed)
         .toList();
   }
 
   // Get failed downloads
-  Future<List<DownloadItem>> getFailedDownloads() async {
+  Future<List<model.DownloadItem>> getFailedDownloads() async {
     final downloads = await _downloadRepository.getAllDownloads();
     return downloads
-        .where((download) => download.status == DownloadStatus.failed)
+        .where((download) => download.status == model.DownloadStatus.failed)
         .toList();
   }
 
   // Add a download with existing download ID from backend
-  Future<DownloadItem> addDownloadWithId({
+  Future<model.DownloadItem> addDownloadWithId({
     required String url,
     required String title,
     String? thumbnailUrl,
-    required DownloadPlatform platform,
+    required model.DownloadPlatform platform,
     required String downloadId,
   }) async {
     // Create download directory if it doesn't exist
@@ -89,7 +99,7 @@ class DownloadService {
     final filePath = '${platformDir.path}/$fileName';
 
     // Create download item
-    final downloadItem = DownloadItem(
+    final downloadItem = model.DownloadItem(
       id: downloadId, // Use the provided download ID from backend
       url: url,
       title: title,
@@ -102,7 +112,7 @@ class DownloadService {
       progress: 0.0,
       speed: 0,
       eta: 0,
-      status: DownloadStatus.queued,
+      status: model.DownloadStatus.queued,
       createdAt: DateTime.now(),
     );
 
@@ -120,12 +130,13 @@ class DownloadService {
     // Get all queued downloads
     final downloads = await _downloadRepository.getAllDownloads();
     final queuedDownloads = downloads
-        .where((download) => download.status == DownloadStatus.queued)
+        .where((download) => download.status == model.DownloadStatus.queued)
         .toList();
 
     // Get current active downloads count
     final activeDownloads = downloads
-        .where((download) => download.status == DownloadStatus.downloading)
+        .where(
+            (download) => download.status == model.DownloadStatus.downloading)
         .toList();
 
     // Start downloads if we have capacity
@@ -138,87 +149,141 @@ class DownloadService {
     }
   }
 
+  int _parseSpeed(String? speedStr) {
+    if (speedStr == null || speedStr.toLowerCase() == 'na') return 0;
+    try {
+      // e.g., "1.23MiB/s", "512.4KiB/s", "10.0B/s"
+      final sanitized = speedStr.replaceAll('/s', '').trim();
+      final valueStr = sanitized.replaceAll(RegExp(r'[a-zA-Z]'), '').trim();
+      final unit = sanitized.replaceAll(RegExp(r'[0-9.\\s]'), '').toUpperCase();
+
+      final value = double.parse(valueStr);
+
+      if (unit.startsWith('K')) {
+        return (value * 1024).toInt();
+      } else if (unit.startsWith('M')) {
+        return (value * 1024 * 1024).toInt();
+      } else if (unit.startsWith('G')) {
+        return (value * 1024 * 1024 * 1024).toInt();
+      } else {
+        // B for Bytes
+        return value.toInt();
+      }
+    } catch (e) {
+      Logger.warning('Could not parse speed: $speedStr', e);
+      return 0;
+    }
+  }
+
+  int _parseEta(String? etaStr) {
+    if (etaStr == null || etaStr.toLowerCase() == 'unknown') return 0;
+    try {
+      // e.g., "01:23:45", "23:45", "45"
+      final parts = etaStr.split(':').map(int.parse).toList().reversed.toList();
+      int seconds = 0;
+      if (parts.isNotEmpty) seconds += parts[0]; // seconds
+      if (parts.length > 1) seconds += parts[1] * 60; // minutes
+      if (parts.length > 2) seconds += parts[2] * 3600; // hours
+      return seconds;
+    } catch (e) {
+      Logger.warning('Could not parse ETA: $etaStr', e);
+      return 0;
+    }
+  }
+
   // Start actual download process
-  Future<void> _startDownloadProcess(DownloadItem download) async {
+  Future<void> _startDownloadProcess(model.DownloadItem download) async {
     // Update status to downloading
-    var updatedDownload = download.copyWith(status: DownloadStatus.downloading);
+    var updatedDownload =
+        download.copyWith(status: model.DownloadStatus.downloading);
     await _downloadRepository.updateDownload(updatedDownload);
 
     // Show download started notification
     await _notificationService.showDownloadStarted(updatedDownload);
 
-    // TODO: Implement actual download logic with HTTP or platform-specific download
-    // For now, we'll simulate a download with a timer
-
-    // Simulate download progress
-    const totalBytes = 100 * 1024 * 1024; // 100 MB
-    var downloadedBytes = 0;
-    final startTime = DateTime.now();
-
-    final timer = Timer.periodic(const Duration(milliseconds: 500), (
-      timer,
-    ) async {
-      // Simulate download progress
-      final elapsedSeconds = DateTime.now().difference(startTime).inSeconds;
-      if (elapsedSeconds == 0) return; // Avoid division by zero
-
-      // Simulate random download speed between 1-5 MB/s
-      final speed =
-          (1 + (DateTime.now().millisecondsSinceEpoch % 4)) * 1024 * 1024;
-      downloadedBytes += speed ~/ 2; // Because we update every 500ms
-
-      if (downloadedBytes >= totalBytes) {
-        downloadedBytes = totalBytes;
+    final timer =
+        Timer.periodic(AppConstants.progressUpdateInterval, (timer) async {
+      // If download is no longer active (e.g. paused/cancelled), stop polling
+      if (!_activeDownloads.containsKey(download.id)) {
         timer.cancel();
-
-        // Update download as completed
-        updatedDownload = updatedDownload.copyWith(
-          totalBytes: totalBytes,
-          downloadedBytes: downloadedBytes,
-          progress: 1.0,
-          speed: 0,
-          eta: 0,
-          status: DownloadStatus.completed,
-          completedAt: () => DateTime.now(),
-        );
-        await _downloadRepository.updateDownload(updatedDownload);
-
-        // Show completed notification
-        await _notificationService.showDownloadCompleted(updatedDownload);
-
-        // Emit download completed event
-        _downloadEventsController.add(
-          DownloadCompletedEvent(download.id, download.filePath),
-        );
-
-        // Remove from active downloads
-        _activeDownloads.remove(download.id)?.cancel();
-
-        // Process queue for next download
-        _processQueue();
-
         return;
       }
 
-      // Calculate progress and ETA
-      final progress = downloadedBytes / totalBytes;
-      final eta = ((totalBytes - downloadedBytes) / speed).round();
+      try {
+        final status =
+            await _videoDownloadService.getDownloadStatus(download.id);
 
-      // Update download item
-      updatedDownload = updatedDownload.copyWith(
-        totalBytes: totalBytes,
-        downloadedBytes: downloadedBytes,
-        progress: progress,
-        speed: speed,
-        eta: eta,
-      );
-      await _downloadRepository.updateDownload(updatedDownload);
+        // Update download item with new status
+        updatedDownload = updatedDownload.copyWith(
+          progress: status.progress,
+          speed: _parseSpeed(status.speed),
+          eta: _parseEta(status.eta),
+          downloadedBytes: status.downloadedBytes,
+          totalBytes: status.totalBytes,
+        );
 
-      // Update notification
-      await _notificationService.updateDownloadProgress(updatedDownload);
+        if (status.isDownloading) {
+          await _downloadRepository.updateDownload(updatedDownload);
+          await _notificationService.updateDownloadProgress(updatedDownload);
+        } else if (status.isCompleted) {
+          timer.cancel();
+          _activeDownloads.remove(download.id);
+
+          // Download the file from backend to device storage
+          final finalPath = await _videoDownloadService.downloadFile(
+              download.id, status.filename ?? download.fileName);
+
+          updatedDownload = updatedDownload.copyWith(
+            status: model.DownloadStatus.completed,
+            progress: 1.0,
+            filePath: finalPath,
+            fileName: status.filename ?? download.fileName,
+            completedAt: () => DateTime.now(),
+          );
+          await _downloadRepository.updateDownload(updatedDownload);
+          await _notificationService.showDownloadCompleted(updatedDownload);
+          _downloadEventsController.add(
+            model.DownloadCompletedEvent(download.id, finalPath),
+          );
+          _processQueue();
+        } else if (status.isFailed) {
+          timer.cancel();
+          _activeDownloads.remove(download.id);
+          updatedDownload = updatedDownload.copyWith(
+            status: model.DownloadStatus.failed,
+            error: () => status.error ?? 'Unknown error',
+          );
+          await _downloadRepository.updateDownload(updatedDownload);
+          await _notificationService.showDownloadFailed(updatedDownload);
+          _downloadEventsController.add(
+            model.DownloadFailedEvent(
+                download.id, status.error ?? 'Unknown error'),
+          );
+          _processQueue();
+        } else if (status.isCancelled) {
+          timer.cancel();
+          _activeDownloads.remove(download.id);
+          // The cancelDownload method handles the rest.
+        }
+      } catch (e, stack) {
+        timer.cancel();
+        _activeDownloads.remove(download.id);
+        final appError = ErrorFactory.fromException(e, stack);
+        appError.log();
+
+        updatedDownload = updatedDownload.copyWith(
+          status: model.DownloadStatus.failed,
+          error: () => appError.message,
+        );
+        await _downloadRepository.updateDownload(updatedDownload);
+        await _notificationService.showDownloadFailed(updatedDownload);
+        _downloadEventsController.add(
+          model.DownloadFailedEvent(download.id, appError.message),
+        );
+        _processQueue();
+      }
     });
 
-    // Store the timer subscription
     _activeDownloads[download.id] = timer;
   }
 
@@ -231,7 +296,8 @@ class DownloadService {
     // Update status
     final download = await _downloadRepository.getDownloadById(downloadId);
     if (download != null) {
-      final updatedDownload = download.copyWith(status: DownloadStatus.paused);
+      final updatedDownload =
+          download.copyWith(status: model.DownloadStatus.paused);
       await _downloadRepository.updateDownload(updatedDownload);
 
       // Cancel notification
@@ -248,7 +314,8 @@ class DownloadService {
   Future<void> resumeDownload(String downloadId) async {
     final download = await _downloadRepository.getDownloadById(downloadId);
     if (download != null) {
-      final updatedDownload = download.copyWith(status: DownloadStatus.queued);
+      final updatedDownload =
+          download.copyWith(status: model.DownloadStatus.queued);
       await _downloadRepository.updateDownload(updatedDownload);
       _processQueue();
     }
@@ -264,7 +331,7 @@ class DownloadService {
     final download = await _downloadRepository.getDownloadById(downloadId);
     if (download != null) {
       final updatedDownload = download.copyWith(
-        status: DownloadStatus.canceled,
+        status: model.DownloadStatus.canceled,
       );
       await _downloadRepository.updateDownload(updatedDownload);
 
@@ -293,7 +360,7 @@ class DownloadService {
     final download = await _downloadRepository.getDownloadById(downloadId);
     if (download != null) {
       final updatedDownload = download.copyWith(
-        status: DownloadStatus.queued,
+        status: model.DownloadStatus.queued,
         downloadedBytes: 0,
         progress: 0.0,
         speed: 0,
@@ -373,17 +440,17 @@ class DownloadService {
   }
 
   // Helper method to get platform folder name
-  String _getPlatformFolder(DownloadPlatform platform) {
+  String _getPlatformFolder(model.DownloadPlatform platform) {
     switch (platform) {
-      case DownloadPlatform.youtube:
+      case model.DownloadPlatform.youtube:
         return 'YouTube';
-      case DownloadPlatform.tiktok:
+      case model.DownloadPlatform.tiktok:
         return 'TikTok';
-      case DownloadPlatform.instagram:
+      case model.DownloadPlatform.instagram:
         return 'Instagram';
-      case DownloadPlatform.facebook:
+      case model.DownloadPlatform.facebook:
         return 'Facebook';
-      case DownloadPlatform.other:
+      case model.DownloadPlatform.other:
         return 'Other';
     }
   }
@@ -409,14 +476,14 @@ class DownloadService {
       final title = _generateTitleFromUrl(url);
 
       // Create download item
-      final downloadItem = DownloadItem(
+      final downloadItem = model.DownloadItem(
         id: downloadId,
         title: title,
         url: url,
         platform: platform,
         filePath: '', // Will be set when download completes
         fileName: _generateFileNameFromUrl(url),
-        status: DownloadStatus.queued,
+        status: model.DownloadStatus.queued,
         progress: 0.0,
         downloadedBytes: 0,
         totalBytes: 0,
@@ -440,18 +507,18 @@ class DownloadService {
   }
 
   // Determine platform from URL
-  DownloadPlatform _determinePlatformFromUrl(String url) {
+  model.DownloadPlatform _determinePlatformFromUrl(String url) {
     url = url.toLowerCase();
     if (url.contains('youtube.com') || url.contains('youtu.be')) {
-      return DownloadPlatform.youtube;
+      return model.DownloadPlatform.youtube;
     } else if (url.contains('tiktok.com')) {
-      return DownloadPlatform.tiktok;
+      return model.DownloadPlatform.tiktok;
     } else if (url.contains('instagram.com')) {
-      return DownloadPlatform.instagram;
+      return model.DownloadPlatform.instagram;
     } else if (url.contains('facebook.com') || url.contains('fb.com')) {
-      return DownloadPlatform.facebook;
+      return model.DownloadPlatform.facebook;
     } else {
-      return DownloadPlatform.other;
+      return model.DownloadPlatform.other;
     }
   }
 

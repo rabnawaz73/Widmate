@@ -130,9 +130,9 @@ class _MediaPlayerWidgetState extends ConsumerState<MediaPlayerWidget> {
             height: 200,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withAlpha(26),
               border: Border.all(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withAlpha(77),
                 width: 2,
               ),
             ),
@@ -307,10 +307,10 @@ class _MediaPlayerControlsState extends State<MediaPlayerControls> {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Colors.black.withOpacity(0.7),
+                Colors.black.withAlpha(179),
                 Colors.transparent,
                 Colors.transparent,
-                Colors.black.withOpacity(0.7),
+                Colors.black.withAlpha(179),
               ],
             ),
           ),

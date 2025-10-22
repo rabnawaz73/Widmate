@@ -278,7 +278,7 @@ class _PlaylistSelectionWidgetState extends State<PlaylistSelectionWidget> {
             Container(
               height: 300,
               decoration: BoxDecoration(
-                border: Border.all(color: colorScheme.outline.withOpacity(0.3)),
+                border: Border.all(color: colorScheme.outline.withAlpha(77)),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: ListView.builder(
@@ -290,11 +290,11 @@ class _PlaylistSelectionWidgetState extends State<PlaylistSelectionWidget> {
                   return Container(
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? colorScheme.primaryContainer.withOpacity(0.3)
+                          ? colorScheme.primaryContainer.withAlpha(77)
                           : null,
                       border: Border(
                         bottom: BorderSide(
-                          color: colorScheme.outline.withOpacity(0.1),
+                          color: colorScheme.outline.withAlpha(26),
                         ),
                       ),
                     ),

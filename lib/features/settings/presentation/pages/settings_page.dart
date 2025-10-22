@@ -12,6 +12,8 @@ import 'package:widmate/features/settings/presentation/widgets/auto_update_setti
 import 'package:widmate/features/settings/presentation/widgets/storage_management_widget.dart';
 import 'package:widmate/app/src/services/settings_export_service.dart';
 import 'package:widmate/app/src/app_widget.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:widmate/features/downloads/domain/services/download_service.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -144,7 +146,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
         gradient: LinearGradient(
           colors: [
             colorScheme.primaryContainer,
-            colorScheme.primaryContainer.withOpacity(0.7),
+            colorScheme.primaryContainer.withAlpha(178),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -177,7 +179,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                 Text(
                   'Customize your WidMate experience',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onPrimaryContainer.withOpacity(0.8),
+                        color: colorScheme.onPrimaryContainer.withAlpha(204),
                       ),
                 ),
               ],
@@ -510,39 +512,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
         title: const Text('Theme'),
         subtitle: Text(_getThemeName(currentTheme)),
         children: [
-          RadioListTile<ThemeMode>(
-            title: const Text('System'),
-            subtitle: const Text('Follow system theme'),
-            value: ThemeMode.system,
-            groupValue: currentTheme,
-            onChanged: (value) {
-              if (value != null) {
-                ref.read(themeModeProvider.notifier).state = value;
-              }
-            },
-          ),
-          RadioListTile<ThemeMode>(
-            title: const Text('Light'),
-            subtitle: const Text('Always use light theme'),
-            value: ThemeMode.light,
-            groupValue: currentTheme,
-            onChanged: (value) {
-              if (value != null) {
-                ref.read(themeModeProvider.notifier).state = value;
-              }
-            },
-          ),
-          RadioListTile<ThemeMode>(
-            title: const Text('Dark'),
-            subtitle: const Text('Always use dark theme'),
-            value: ThemeMode.dark,
-            groupValue: currentTheme,
-            onChanged: (value) {
-              if (value != null) {
-                ref.read(themeModeProvider.notifier).state = value;
-              }
-            },
-          ),
+          RadioMenuButton<ThemeMode>(            value: ThemeMode.system,            groupValue: currentTheme,            onChanged: (value) {              if (value != null) {                ref.read(themeModeProvider.notifier).state = value;              }            },            child: const Text('System'),          ),
+          RadioMenuButton<ThemeMode>(            value: ThemeMode.light,            groupValue: currentTheme,            onChanged: (value) {              if (value != null) {                ref.read(themeModeProvider.notifier).state = value;              }            },            child: const Text('Light'),          ),
+          RadioMenuButton<ThemeMode>(            value: ThemeMode.dark,            groupValue: currentTheme,            onChanged: (value) {              if (value != null) {                ref.read(themeModeProvider.notifier).state = value;              }            },            child: const Text('Dark'),          ),
         ],
       ),
     );
@@ -715,9 +687,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(dialogContext).pop();
-              // TODO: Implement cache clearing
+              // Implement cache clearing
+              await DefaultCacheManager().emptyCache();
+              if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Cache cleared successfully'),
@@ -746,9 +720,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(dialogContext).pop();
-              // TODO: Implement history clearing
+              // Implement history clearing
+              await ref.read(downloadServiceProvider).clearCompletedDownloads();
+              if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Download history cleared'),

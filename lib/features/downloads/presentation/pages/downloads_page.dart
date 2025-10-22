@@ -62,9 +62,12 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage>
   void _shareDownload(DownloadItem download) async {
     try {
       if (download.filePath.isNotEmpty) {
-        await Share.shareXFiles([
-          XFile(download.filePath),
-        ], text: 'Check out this video: ${download.title}');
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile(download.filePath)],
+            subject: 'Check out this video: ${download.title}',
+          ),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -373,7 +376,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       decoration: BoxDecoration(
-        color: colorScheme.primaryContainer.withOpacity(0.3),
+        color: colorScheme.primaryContainer.withAlpha(77),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -435,7 +438,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       decoration: BoxDecoration(
-        color: colorScheme.tertiaryContainer.withOpacity(0.3),
+        color: colorScheme.tertiaryContainer.withAlpha(77),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -479,9 +482,9 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage>
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    colorScheme.outline.withOpacity(0.3),
-                    colorScheme.primary.withOpacity(0.5),
-                    colorScheme.outline.withOpacity(0.3),
+                    colorScheme.outline.withAlpha(77),
+                    colorScheme.primary.withAlpha(128),
+                    colorScheme.outline.withAlpha(77),
                   ],
                 ),
               ),
@@ -494,7 +497,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage>
               decoration: BoxDecoration(
                 color: colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: colorScheme.outline.withOpacity(0.3)),
+                border: Border.all(color: colorScheme.outline.withAlpha(77)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -522,9 +525,9 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage>
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    colorScheme.outline.withOpacity(0.3),
-                    colorScheme.primary.withOpacity(0.5),
-                    colorScheme.outline.withOpacity(0.3),
+                    colorScheme.outline.withAlpha(77),
+                    colorScheme.primary.withAlpha(128),
+                    colorScheme.outline.withAlpha(77),
                   ],
                 ),
               ),
@@ -741,7 +744,7 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage>
                   color: _getStatusColor(
                     download.status,
                     colorScheme,
-                  ).withOpacity(0.1),
+                  ).withAlpha(26),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(

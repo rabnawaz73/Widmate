@@ -9,11 +9,11 @@ class ColorPalette {
   static Color withOpacityPreset(Color color, OpacityPreset preset) {
     switch (preset) {
       case OpacityPreset.subtle:
-        return color.withOpacity(0.6);
+        return color.withAlpha(153);
       case OpacityPreset.medium:
-        return color.withOpacity(0.8);
+        return color.withAlpha(204);
       case OpacityPreset.strong:
-        return color.withOpacity(0.9);
+        return color.withAlpha(230);
     }
   }
 }

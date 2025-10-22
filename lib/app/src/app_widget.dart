@@ -12,8 +12,14 @@ import 'package:widmate/features/media/presentation/pages/media_library_page.dar
 import 'package:widmate/app/src/theme.dart';
 import 'package:widmate/app/src/localization/app_localizations.dart';
 import 'package:widmate/core/widgets/app_icon_widget.dart';
+import 'package:flutter/services.dart';
+import 'package:widmate/core/providers/video_download_provider.dart';
+import 'package:widmate/features/downloads/presentation/controllers/download_controller.dart';
+import 'package:widmate/features/downloads/domain/models/download_item.dart';
 
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
+
+final refreshProvider = StateProvider<int>((ref) => 0);
 
 final pageNavigationRequestProvider =
     StateNotifierProvider<NavigationNotifier, int?>((ref) {
@@ -510,13 +516,7 @@ class _RootScaffoldState extends ConsumerState<_RootScaffold>
           if (_index == 0)
             IconButton(
               onPressed: () {
-                // TODO: Implement search functionality
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Search functionality coming soon'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
+                _onDestinationSelected(1);
               },
               icon: const Icon(Icons.search),
               tooltip: 'Search',
@@ -527,13 +527,7 @@ class _RootScaffoldState extends ConsumerState<_RootScaffold>
             onSelected: (value) {
               switch (value) {
                 case 'refresh':
-                  // TODO: Implement refresh
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Refreshing...'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                  ref.read(refreshProvider.notifier).state++;
                   break;
                 case 'help':
                   _showHelpDialog();
@@ -639,14 +633,65 @@ class _RootScaffoldState extends ConsumerState<_RootScaffold>
           ? ScaleTransition(
               scale: _fabAnimation,
               child: FloatingActionButton.extended(
-                onPressed: () {
-                  // TODO: Implement quick download from clipboard
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Quick download from clipboard'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                onPressed: () async {
+                  final clipboardData =
+                      await Clipboard.getData(Clipboard.kTextPlain);
+                  final url = clipboardData?.text;
+                  if (url != null && Uri.tryParse(url)?.isAbsolute == true) {
+                    try {
+                      // Show a loading indicator
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Getting video info...')),
+                      );
+
+                      final videoInfo =
+                          await ref.read(videoInfoProvider(url).future);
+
+                      if (videoInfo != null) {
+                        final downloadResponse = await ref
+                            .read(videoDownloadServiceProvider)
+                            .startDownload(url: url);
+                        final downloadId = downloadResponse.downloadId;
+
+                        final platform = ref.read(platformDetectorProvider(url));
+                        final downloadPlatform = platform != null
+                            ? ref
+                                .read(downloadControllerProvider.notifier)
+                                .platformToDownloadPlatform(platform)
+                            : DownloadPlatform.other;
+
+                        await ref
+                            .read(downloadControllerProvider.notifier)
+                            .addDownload(
+                              url: url,
+                              title: videoInfo.title,
+                              thumbnailUrl: videoInfo.thumbnail,
+                              platform: downloadPlatform,
+                              downloadId: downloadId,
+                            );
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Download started!')),
+                        );
+                        _onDestinationSelected(2); // Navigate to downloads page
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Could not get video info.')),
+                        );
+                      }
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                            content: Text('Failed to start download: $e')),
+                      );
+                    }
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('No valid URL found in clipboard.')),
+                    );
+                  }
                 },
                 icon: const Icon(Icons.content_paste),
                 label: const Text('Quick Download'),

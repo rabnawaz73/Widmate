@@ -2,9 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:widmate/features/downloads/domain/models/download_events.dart';
 import 'package:widmate/features/downloads/domain/services/download_service.dart';
 
+// Provides a stream of download events.
 final downloadEventsProvider = StreamProvider<DownloadEvent>((ref) {
   final downloadService = ref.watch(downloadServiceProvider);
-  return downloadService.downloadEvents;
+  return downloadService.downloadEvents.map((event) => event);
 });
 
 final downloadProgressProvider = StreamProvider.family<double, String>((

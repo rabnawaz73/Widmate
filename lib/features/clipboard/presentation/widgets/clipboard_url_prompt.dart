@@ -56,7 +56,7 @@ class ClipboardUrlPrompt extends ConsumerWidget {
             Text(
               url,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                color: theme.colorScheme.onSurface.withAlpha(153),
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
