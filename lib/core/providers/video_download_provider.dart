@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:widmate/core/models/download_models.dart';
 import 'package:widmate/core/services/video_download_service.dart';
 
 /// Provider for the video download service

@@ -6,14 +6,10 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:widmate/app/src/responsive/responsive_utils.dart';
 import 'package:widmate/app/src/responsive/responsive_wrapper.dart';
 import 'package:widmate/features/settings/presentation/controllers/settings_controller.dart';
-import 'package:widmate/features/settings/presentation/pages/advanced_settings_page.dart';
-import 'package:widmate/features/settings/presentation/widgets/language_selector.dart';
-import 'package:widmate/features/settings/presentation/widgets/auto_update_settings_widget.dart';
-import 'package:widmate/features/settings/presentation/widgets/storage_management_widget.dart';
 import 'package:widmate/app/src/services/settings_export_service.dart';
-import 'package:widmate/app/src/app_widget.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:widmate/features/downloads/domain/services/download_service.dart';
+import 'package:widmate/app/src/providers/app_providers.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -22,275 +18,106 @@ class SettingsPage extends ConsumerStatefulWidget {
   ConsumerState<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends ConsumerState<SettingsPage>
-    with TickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
-
+class _SettingsPageState extends ConsumerState<SettingsPage> {
   PackageInfo? _packageInfo;
-  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-    );
-    _slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOutCubic,
-      ),
-    );
-
-    _loadPackageInfo();
-    _animationController.forward();
+    _initPackageInfo();
   }
 
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadPackageInfo() async {
-    try {
-      final packageInfo = await PackageInfo.fromPlatform();
-      if (mounted) {
-        setState(() {
-          _packageInfo = packageInfo;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
+  Future<void> _initPackageInfo() async {
+    final info = await PackageInfo.fromPlatform();
+    setState(() {
+      _packageInfo = info;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final settings = ref.watch(settingsControllerProvider);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
     return ResponsiveScaffold(
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: SlideTransition(
-          position: _slideAnimation,
-          child: ListView(
-            padding: ResponsiveUtils.getResponsivePadding(context),
-            children: [
-              // Header with app info
-              _buildHeader(context, colorScheme),
-              const SizedBox(height: 24),
-
-              // Quick Settings
-              _buildQuickSettings(context, settings, colorScheme),
-              const SizedBox(height: 24),
-
-              // Download Settings
-              _buildDownloadSettings(context, settings, colorScheme),
-              const SizedBox(height: 24),
-
-              // Appearance Settings
-              _buildAppearanceSettings(context, settings, colorScheme),
-              const SizedBox(height: 24),
-
-              // Advanced Settings
-              _buildAdvancedSettings(context, colorScheme),
-              const SizedBox(height: 24),
-
-              // Storage & Data
-              _buildStorageSettings(context, colorScheme),
-              const SizedBox(height: 24),
-
-              // Storage Management
-              _buildSection(context, 'Storage Management', Icons.storage, [
-                const StorageManagementWidget(),
-              ]),
-              const SizedBox(height: 24),
-
-              // Support & About
-              _buildSupportSettings(context, colorScheme),
-              const SizedBox(height: 24),
-
-              // App Info
-              _buildAppInfo(context, colorScheme),
-              const SizedBox(height: 32),
-            ],
-          ),
-        ),
+      appBar: AppBar(
+        title: const Text('Settings'),
       ),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context, ColorScheme colorScheme) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            colorScheme.primaryContainer,
-            colorScheme.primaryContainer.withAlpha(178),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colorScheme.primary,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.settings, color: colorScheme.onPrimary, size: 32),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
+      body: SingleChildScrollView(
+        padding: ResponsiveUtils.isMobile(context)
+            ? const EdgeInsets.all(16.0)
+            : const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 800),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Settings',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onPrimaryContainer,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Customize your WidMate experience',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onPrimaryContainer.withAlpha(204),
-                      ),
-                ),
+                _buildSection(context, 'Appearance', Icons.palette, [
+                  _buildThemeCard(context, colorScheme),
+                  const SizedBox(height: 12),
+                  _buildLayoutCard(context, colorScheme),
+                ]),
+                const SizedBox(height: 24),
+                _buildSection(context, 'Downloads', Icons.download, [
+                  _buildActionCard(
+                    context,
+                    'Download Location',
+                    'Change where your files are saved',
+                    Icons.folder,
+                    () => _selectDownloadFolder(),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildActionCard(
+                    context,
+                    'Max Concurrent Downloads',
+                    'Set the number of parallel downloads',
+                    Icons.speed,
+                    () => _showConcurrentDownloadsDialog(context),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildActionCard(
+                    context,
+                    'Default Quality',
+                    'Choose the default video quality',
+                    Icons.high_quality,
+                    () => _showQualityDialog(context),
+                  ),
+                ]),
+                const SizedBox(height: 24),
+                _buildSection(context, 'General', Icons.settings, [
+                  _buildSwitchCard(
+                    context,
+                    'Auto-Detect Clipboard',
+                    'Automatically detect video links in clipboard',
+                    Icons.content_paste,
+                    ref.watch(settingsControllerProvider)?.autoDetectClipboard ?? false,
+                    (value) => ref.read(settingsControllerProvider.notifier).setAutoDetectClipboard(value),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSwitchCard(
+                    context,
+                    'Show Notifications',
+                    'Get notified about download progress',
+                    Icons.notifications,
+                    ref.watch(settingsControllerProvider)?.showNotifications ?? true,
+                    (value) => ref.read(settingsControllerProvider.notifier).setShowNotifications(value),
+                  ),
+                ]),
+                const SizedBox(height: 24),
+                _buildStorageSettings(context, colorScheme),
+                const SizedBox(height: 24),
+                _buildSupportSettings(context, colorScheme),
+                const SizedBox(height: 24),
+                _buildAppInfo(context, colorScheme),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildQuickSettings(
-    BuildContext context,
-    AppSettings? settings,
-    ColorScheme colorScheme,
-  ) {
-    return _buildSection(context, 'Quick Settings', Icons.tune, [
-      _buildQuickSettingCard(
-        context,
-        'Download Folder',
-        settings?.downloadPath ?? '/storage/emulated/0/Download/WidMate',
-        Icons.folder,
-        () => _selectDownloadFolder(),
-      ),
-      const SizedBox(height: 12),
-      _buildQuickSettingCard(
-        context,
-        'Max Downloads',
-        '${settings?.maxConcurrentDownloads ?? 3} concurrent',
-        Icons.download_for_offline,
-        () => _showConcurrentDownloadsDialog(context),
-      ),
-      const SizedBox(height: 12),
-      _buildQuickSettingCard(
-        context,
-        'Default Quality',
-        settings?.defaultQuality ?? 'HD',
-        Icons.high_quality,
-        () => _showQualityDialog(context),
-      ),
-    ]);
-  }
-
-  Widget _buildDownloadSettings(
-    BuildContext context,
-    AppSettings? settings,
-    ColorScheme colorScheme,
-  ) {
-    return _buildSection(context, 'Download Settings', Icons.download, [
-      _buildSwitchCard(
-        context,
-        'Background Downloads',
-        'Continue downloading when app is minimized',
-        Icons.download_for_offline,
-        settings?.backgroundDownloadsEnabled ?? true,
-        (value) => ref
-            .read(settingsControllerProvider.notifier)
-            .setBackgroundDownloadsEnabled(value),
-      ),
-      const SizedBox(height: 12),
-      _buildSwitchCard(
-        context,
-        'Download Notifications',
-        'Show progress notifications for downloads',
-        Icons.notifications,
-        settings?.showNotifications ?? true,
-        (value) => ref
-            .read(settingsControllerProvider.notifier)
-            .setShowNotifications(value),
-      ),
-      const SizedBox(height: 12),
-      _buildSwitchCard(
-        context,
-        'Auto-detect Clipboard',
-        'Automatically detect video URLs from clipboard',
-        Icons.content_paste,
-        settings?.autoDetectClipboard ?? true,
-        (value) => ref
-            .read(settingsControllerProvider.notifier)
-            .setAutoDetectClipboard(value),
-      ),
-    ]);
-  }
-
-  Widget _buildAppearanceSettings(
-    BuildContext context,
-    AppSettings? settings,
-    ColorScheme colorScheme,
-  ) {
-    return _buildSection(context, 'Appearance', Icons.palette, [
-      _buildThemeCard(context, colorScheme),
-      const SizedBox(height: 12),
-      const LanguageSelector(),
-    ]);
-  }
-
-  Widget _buildAdvancedSettings(BuildContext context, ColorScheme colorScheme) {
-    return _buildSection(context, 'Advanced', Icons.settings_applications, [
-      _buildActionCard(
-        context,
-        'Advanced Settings',
-        'Configure additional app settings',
-        Icons.tune,
-        () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const AdvancedSettingsPage()),
-        ),
-      ),
-      const SizedBox(height: 12),
-      const AutoUpdateSettingsWidget(),
-    ]);
-  }
 
   Widget _buildStorageSettings(BuildContext context, ColorScheme colorScheme) {
     return _buildSection(context, 'Storage & Data', Icons.storage, [
@@ -433,24 +260,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     );
   }
 
-  Widget _buildQuickSettingCard(
-    BuildContext context,
-    String title,
-    String subtitle,
-    IconData icon,
-    VoidCallback onTap,
-  ) {
-    return Card(
-      child: ListTile(
-        leading: Icon(icon),
-        title: Text(title),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
-      ),
-    );
-  }
-
   Widget _buildSwitchCard(
     BuildContext context,
     String title,
@@ -516,6 +325,43 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
           RadioMenuButton<ThemeMode>(            value: ThemeMode.light,            groupValue: currentTheme,            onChanged: (value) {              if (value != null) {                ref.read(themeModeProvider.notifier).state = value;              }            },            child: const Text('Light'),          ),
           RadioMenuButton<ThemeMode>(            value: ThemeMode.dark,            groupValue: currentTheme,            onChanged: (value) {              if (value != null) {                ref.read(themeModeProvider.notifier).state = value;              }            },            child: const Text('Dark'),          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLayoutCard(BuildContext context, ColorScheme colorScheme) {
+    final currentLayout = ref.watch(layoutProvider);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Layout', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            RadioListTile<String>(
+              title: const Text('Comfortable'),
+              value: 'Comfortable',
+              groupValue: currentLayout,
+              onChanged: (value) {
+                if (value != null) {
+                  ref.read(layoutProvider.notifier).state = value;
+                }
+              },
+            ),
+            RadioListTile<String>(
+              title: const Text('Compact'),
+              value: 'Compact',
+              groupValue: currentLayout,
+              onChanged: (value) {
+                if (value != null) {
+                  ref.read(layoutProvider.notifier).state = value;
+                }
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

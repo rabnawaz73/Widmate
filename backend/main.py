@@ -117,8 +117,8 @@ class VideoInfoRequest(BaseModel):
 
 class DownloadRequest(BaseModel):
     url: str
-    format_id: Optional[str] = "best"
-    quality: Optional[str] = "720p"  # 480p, 720p, 1080p, audio-only
+    format_id: Optional[str] = None # Allow direct format_id selection
+    quality: Optional[str] = "720p"  # 480p, 720p, 1080p, audio-only (fallback if format_id not provided)
     playlist_items: Optional[str] = None  # "1-5" or "1,3,5" for specific items
     audio_only: bool = False
     output_path: Optional[str] = None
@@ -191,18 +191,21 @@ class SearchResponse(BaseModel):
     search_time: float
 
 # yt-dlp configuration
-def get_ydl_opts(download_id: str, quality: str = "720p", audio_only: bool = False) -> Dict[str, Any]:
-    """Get yt-dlp options based on quality preference"""
+def get_ydl_opts(download_id: str, format_id: Optional[str] = None, quality: str = "720p", audio_only: bool = False) -> Dict[str, Any]:
+    """Get yt-dlp options based on format_id or quality preference"""
     
     output_template = str(DOWNLOADS_DIR / f"{download_id}_%(title)s.%(ext)s")
     
-    if audio_only:
+    if format_id:
+        format_selector = format_id
+    elif audio_only:
         format_selector = "bestaudio/best"
     else:
         quality_map = {
             "480p": "best[height<=480]",
             "720p": "best[height<=720]", 
             "1080p": "best[height<=1080]",
+            "best": "best" # Add a 'best' option for video
         }
         format_selector = quality_map.get(quality, "best")
     
@@ -574,6 +577,7 @@ async def start_download(request: Request, download_request: DownloadRequest, ba
         # Get yt-dlp options
         ydl_opts = get_ydl_opts(
             download_id, 
+            download_request.format_id,
             download_request.quality, 
             download_request.audio_only
         )
@@ -703,47 +707,7 @@ async def get_auto_updater_status():
     """Get auto-updater status and configuration"""
     return get_auto_updater_status()
 
-@app.post("/auto-updater/configure")
-async def configure_auto_updater_endpoint(request: Request, config: Dict[str, Any]):
-    """Configure auto-updater settings"""
-    client_ip = request.client.host if request.client else "unknown"
-    if not check_rate_limit(client_ip, 5):
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
-    
-    try:
-        configure_auto_updater(**config)
-        return {"message": "Auto-updater configuration updated", "config": config}
-    except Exception as e:
-        logger.error(f"Failed to configure auto-updater: {e}")
-        raise HTTPException(status_code=500, detail=f"Configuration failed: {e}")
 
-@app.post("/auto-updater/check")
-async def force_update_check_endpoint(request: Request):
-    """Force an immediate update check"""
-    client_ip = request.client.host if request.client else "unknown"
-    if not check_rate_limit(client_ip, 3):
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
-    
-    try:
-        force_update_check()
-        return {"message": "Update check triggered"}
-    except Exception as e:
-        logger.error(f"Failed to trigger update check: {e}")
-        raise HTTPException(status_code=500, detail=f"Update check failed: {e}")
-
-@app.post("/auto-updater/update")
-async def force_update_endpoint(request: Request):
-    """Force an immediate update"""
-    client_ip = request.client.host if request.client else "unknown"
-    if not check_rate_limit(client_ip, 2):
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
-    
-    try:
-        force_update()
-        return {"message": "Update triggered"}
-    except Exception as e:
-        logger.error(f"Failed to trigger update: {e}")
-        raise HTTPException(status_code=500, detail=f"Update failed: {e}")
 
 @app.post("/search", response_model=SearchResponse)
 async def search_videos(request: Request, search_request: SearchRequest) -> SearchResponse:

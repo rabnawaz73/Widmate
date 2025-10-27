@@ -60,14 +60,14 @@ class _SearchBarWidgetState extends ConsumerState<SearchBarWidget> {
               decoration: BoxDecoration(
                 color: colorScheme.surface,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: colorScheme.outline.withOpacity(0.3)),
+                border: Border.all(color: colorScheme.outline.withAlpha(77)),
               ),
               child: Row(
                 children: [
                   const SizedBox(width: 12),
                   Icon(
                     Icons.search,
-                    color: colorScheme.onSurface.withOpacity(0.6),
+                    color: colorScheme.onSurface.withAlpha(153),
                     size: 20,
                   ),
                   const SizedBox(width: 8),
@@ -78,7 +78,7 @@ class _SearchBarWidgetState extends ConsumerState<SearchBarWidget> {
                       decoration: InputDecoration(
                         hintText: 'Search videos...',
                         hintStyle: TextStyle(
-                          color: colorScheme.onSurface.withOpacity(0.5),
+                          color: colorScheme.onSurface.withAlpha(128),
                           fontSize: 14,
                         ),
                         border: InputBorder.none,
@@ -113,7 +113,7 @@ class _SearchBarWidgetState extends ConsumerState<SearchBarWidget> {
                         onPressed: _clearSearch,
                         icon: Icon(
                           Icons.clear,
-                          color: colorScheme.onSurface.withOpacity(0.6),
+                          color: colorScheme.onSurface.withAlpha(153),
                           size: 18,
                         ),
                         constraints: const BoxConstraints(

@@ -89,7 +89,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           Icon(
             Icons.search,
             size: 64,
-            color: colorScheme.outline.withOpacity(0.5),
+            color: colorScheme.outline.withAlpha(128),
           ),
           const SizedBox(height: 16),
           Text(

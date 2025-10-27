@@ -7,6 +7,10 @@ import 'package:widmate/features/downloads/domain/models/download_item.dart';
 import 'package:widmate/features/downloads/presentation/controllers/download_controller.dart';
 import 'package:widmate/features/home/presentation/widgets/playlist_selection_widget.dart';
 
+import 'package:widmate/features/settings/presentation/providers/download_preset_provider.dart';
+import 'package:widmate/features/settings/domain/models/download_preset.dart';
+import 'package:widmate/core/models/download_models.dart';
+
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
@@ -24,8 +28,9 @@ class _HomePageState extends ConsumerState<HomePage>
   VideoInfo? _videoInfo;
   bool _isLoading = false;
   String? _selectedFormatId;
-  final bool _audioOnly = false;
-  final String _selectedQuality = '720p';
+  bool _audioOnly = false;
+  String _selectedQuality = '720p';
+  DownloadPreset? _selectedPreset;
 
   static final List<Map<String, dynamic>> _supportedPlatforms = [
     {
@@ -170,8 +175,60 @@ class _HomePageState extends ConsumerState<HomePage>
     }
   }
 
-  void _startDownload() async {
-    if (_urlController.text.trim().isEmpty) {
+  void _startBatchDownload(List<String> urls) async {
+    final validUrls = urls.where((url) => url.trim().isNotEmpty).toList();
+
+    if (validUrls.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No valid URLs found.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    int downloadCount = 0;
+    for (final url in validUrls) {
+      try {
+        final videoInfo = await ref.read(videoDownloadServiceProvider).getVideoInfo(
+              url,
+              playlistInfo: true,
+            );
+
+        if (videoInfo.isPlaylist) {
+          // For playlists, we'll download all items by default in batch mode
+          final allItems = List.generate(videoInfo.playlistCount ?? 0, (i) => i + 1).join(',');
+          _startPlaylistDownload(allItems);
+          downloadCount += videoInfo.playlistCount ?? 0;
+        } else {
+          _startDownload(url: url);
+          downloadCount++;
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to process URL $url: ${e.toString()}'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Batch download started for $downloadCount videos.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    // Clear the input field after starting the downloads
+    _urlController.clear();
+  }
+
+  void _startDownload({String? url}) async {
+    final urlToDownload = url ?? _urlController.text.trim();
+    if (urlToDownload.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please enter a valid URL'),
@@ -181,50 +238,55 @@ class _HomePageState extends ConsumerState<HomePage>
       return;
     }
 
-    if (_videoInfo == null) {
-      // If video info isn't loaded yet, fetch it first
-      await _fetchVideoInfo(_urlController.text);
-      if (_videoInfo == null) return; // Exit if fetch failed
+    // If it's a single download, fetch video info first
+    if (url == null) {
+      if (_videoInfo == null) {
+        await _fetchVideoInfo(urlToDownload);
+        if (_videoInfo == null) return; // Exit if fetch failed
+      }
+    } else {
+      // For batch downloads, we fetch info for each URL individually
+      await _fetchVideoInfo(urlToDownload);
+      if (_videoInfo == null) return;
     }
 
     try {
       final downloadService = ref.read(videoDownloadServiceProvider);
       final downloadController = ref.read(downloadControllerProvider.notifier);
 
-      // Start the download with selected format
       final response = await downloadService.startDownload(
-        url: _urlController.text,
+        url: urlToDownload,
         formatId: _selectedFormatId,
         quality: _selectedQuality,
         audioOnly: _audioOnly,
       );
 
-      // Add to download controller to track progress
       await downloadController.addDownload(
-        url: _urlController.text,
+        url: urlToDownload,
         title: _videoInfo!.title,
         thumbnailUrl: _videoInfo!.thumbnail,
-        platform: DownloadPlatform.youtube,
+        platform: DownloadPlatform.youtube, // This should be dynamic
         downloadId: response.downloadId,
       );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Download started! Check the Downloads page for progress.',
+      // For single downloads, show a confirmation and clear the UI
+      if (url == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Download started! Check the Downloads page for progress.',
+            ),
+            behavior: SnackBarBehavior.floating,
           ),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-
-      // Clear video info to reset the UI
-      setState(() {
-        _videoInfo = null;
-      });
+        );
+        setState(() {
+          _videoInfo = null;
+        });
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to start download: ${e.toString()}'),
+          content: Text('Failed to start download for $urlToDownload: ${e.toString()}'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -369,7 +431,8 @@ class _HomePageState extends ConsumerState<HomePage>
                       TextField(
                         controller: _urlController,
                         decoration: InputDecoration(
-                          hintText: 'Paste your video URL here...',
+                          hintText:
+                              'Paste one or more video URLs here (one per line)...',
                           prefixIcon: const Icon(Icons.link),
                           suffixIcon: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -390,16 +453,28 @@ class _HomePageState extends ConsumerState<HomePage>
                           border: const OutlineInputBorder(),
                           filled: true,
                         ),
-                        maxLines: 2,
-                        minLines: 1,
-                        onSubmitted: _fetchVideoInfo,
+                        maxLines: 5,
+                        minLines: 3,
                       ),
                       const SizedBox(height: 16),
                       Row(
                         children: [
                           Expanded(
                             child: FilledButton.icon(
-                              onPressed: _isLoading ? null : _startDownload,
+                              onPressed: () {
+                                if (_isLoading) return;
+
+                                final urls = _urlController.text
+                                    .split('\n')
+                                    .where((url) => url.trim().isNotEmpty)
+                                    .toList();
+
+                                if (urls.length > 1) {
+                                  _startBatchDownload(urls);
+                                } else {
+                                  _startDownload();
+                                }
+                              },
                               icon: _isLoading
                                   ? const SizedBox(
                                       width: 18,
@@ -415,17 +490,26 @@ class _HomePageState extends ConsumerState<HomePage>
                             ),
                           ),
                           const SizedBox(width: 12),
-                          FilledButton.tonal(
-                            onPressed: _detectClipboard,
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.content_paste),
-                                SizedBox(width: 8),
-                                Text('Detect'),
-                              ],
+                          if (ref.watch(downloadPresetProvider).isNotEmpty)
+                            DropdownButton<DownloadPreset>(
+                              value: _selectedPreset,
+                              hint: const Text('Preset'),
+                              items: ref.watch(downloadPresetProvider)
+                                  .map((preset) => DropdownMenuItem(
+                                        value: preset,
+                                        child: Text(preset.name),
+                                      ))
+                                  .toList(),
+                              onChanged: (preset) {
+                                if (preset != null) {
+                                  setState(() {
+                                    _selectedPreset = preset;
+                                    _selectedQuality = preset.quality;
+                                    _audioOnly = preset.audioOnly;
+                                  });
+                                }
+                              },
                             ),
-                          ),
                         ],
                       ),
                     ],
@@ -537,6 +621,43 @@ class _HomePageState extends ConsumerState<HomePage>
                   ),
                 ),
                 const SizedBox(height: 16),
+                if (_videoInfo != null &&
+                    !_videoInfo!.isPlaylist &&
+                    _videoInfo!.formats.isNotEmpty) ...[
+                  DropdownButtonFormField<String>(
+                    initialValue: _selectedFormatId,
+                    decoration: const InputDecoration(
+                      labelText: 'Select Format',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: _videoInfo!.formats.map((format) {
+                      String label = '';
+                      if (format.resolution != '0x0') {
+                        label += '${format.resolution} ';
+                      }
+                      label += '${format.ext} ';
+                      if (format.vcodec != null && format.vcodec != 'none') {
+                        label += '(${format.vcodec}) ';
+                      }
+                      if (format.acodec != null && format.acodec != 'none') {
+                        label += '(${format.acodec}) ';
+                      }
+                      if (format.filesize != null) {
+                        label += ' - ${(format.filesize! / (1024 * 1024)).toStringAsFixed(2)} MB';
+                      }
+                      return DropdownMenuItem(
+                        value: format.formatId,
+                        child: Text(label.trim()),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedFormatId = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                ],
               ],
 
               // Playlist Selection
@@ -885,6 +1006,40 @@ class _HomePageState extends ConsumerState<HomePage>
                           ),
                         ),
                       ),
+                      const SizedBox(height: 20),
+                      if (_videoInfo!.formats.isNotEmpty)
+                        DropdownButtonFormField<String>(
+                          initialValue: _selectedFormatId,
+                          decoration: const InputDecoration(
+                            labelText: 'Select Format',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: _videoInfo!.formats.map((format) {
+                            String label = '';
+                            if (format.resolution != '0x0') {
+                              label += '${format.resolution} ';
+                            }
+                            label += '${format.ext} ';
+                            if (format.vcodec != null && format.vcodec != 'none') {
+                              label += '(${format.vcodec}) ';
+                            }
+                            if (format.acodec != null && format.acodec != 'none') {
+                              label += '(${format.acodec}) ';
+                            }
+                            if (format.filesize != null) {
+                              label += ' - ${(format.filesize! / (1024 * 1024)).toStringAsFixed(2)} MB';
+                            }
+                            return DropdownMenuItem(
+                              value: format.formatId,
+                              child: Text(label.trim()),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedFormatId = value;
+                            });
+                          },
+                        ),
                     ],
 
                     // Playlist Selection for Tablet
@@ -983,7 +1138,6 @@ class _HomePageState extends ConsumerState<HomePage>
       ),
     );
   }
-
   Widget _buildDesktopLayout(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -1061,6 +1215,43 @@ class _HomePageState extends ConsumerState<HomePage>
                                     style: theme.textTheme.titleMedium,
                                   ),
                                   const SizedBox(height: 20),
+                                  if (_videoInfo != null &&
+                                      !_videoInfo!.isPlaylist &&
+                                      _videoInfo!.formats.isNotEmpty) ...[
+                                    DropdownButtonFormField<String>(
+                                      initialValue: _selectedFormatId,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Select Format',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      items: _videoInfo!.formats.map((format) {
+                                        String label = '';
+                                        if (format.resolution != '0x0') {
+                                          label += '${format.resolution} ';
+                                        }
+                                        label += '${format.ext} ';
+                                        if (format.vcodec != null && format.vcodec != 'none') {
+                                          label += '(${format.vcodec}) ';
+                                        }
+                                        if (format.acodec != null && format.acodec != 'none') {
+                                          label += '(${format.acodec}) ';
+                                        }
+                                        if (format.filesize != null) {
+                                          label += ' - ${(format.filesize! / (1024 * 1024)).toStringAsFixed(2)} MB';
+                                        }
+                                        return DropdownMenuItem(
+                                          value: format.formatId,
+                                          child: Text(label.trim()),
+                                        );
+                                      }).toList(),
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _selectedFormatId = value;
+                                        });
+                                      },
+                                    ),
+                                    const SizedBox(height: 20),
+                                  ],
                                   Row(
                                     children: [
                                       Expanded(

@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:widmate/features/home/presentation/pages/home_page.dart';
 import 'package:widmate/features/downloads/presentation/pages/downloads_page.dart';
-import 'package:widmate/features/settings/presentation/pages/settings_page.dart';
+
+
 import 'package:widmate/features/about/presentation/pages/about_page.dart';
 import 'package:widmate/features/clipboard/presentation/managers/clipboard_overlay_manager.dart';
 import 'package:widmate/features/search/presentation/pages/search_page.dart';
 import 'package:widmate/features/search/presentation/widgets/search_bar_widget.dart';
 import 'package:widmate/features/media/presentation/pages/media_library_page.dart';
+import 'package:widmate/features/settings/presentation/pages/settings_page.dart';
 import 'package:widmate/app/src/theme.dart';
 import 'package:widmate/app/src/localization/app_localizations.dart';
 import 'package:widmate/core/widgets/app_icon_widget.dart';
@@ -16,8 +18,7 @@ import 'package:flutter/services.dart';
 import 'package:widmate/core/providers/video_download_provider.dart';
 import 'package:widmate/features/downloads/presentation/controllers/download_controller.dart';
 import 'package:widmate/features/downloads/domain/models/download_item.dart';
-
-final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
+import 'package:widmate/app/src/providers/app_providers.dart';
 
 final refreshProvider = StateProvider<int>((ref) => 0);
 
@@ -81,6 +82,7 @@ class App extends ConsumerWidget {
     final locale = ref.watch(appLocalizationsProvider.select((l) => l.locale));
 
     final currentThemeMode = ref.watch(themeModeProvider);
+    final accentColor = ref.watch(accentColorProvider);
     return MaterialApp(
       title: 'WidMate',
       debugShowCheckedModeBanner: false,
@@ -93,7 +95,7 @@ class App extends ConsumerWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      theme: AppTheme.lightTheme.copyWith(
+      theme: AppTheme.createTheme(accentColor, Brightness.light).copyWith(
         pageTransitionsTheme: const PageTransitionsTheme(
           builders: {
             TargetPlatform.android: CupertinoPageTransitionsBuilder(),
@@ -104,7 +106,7 @@ class App extends ConsumerWidget {
           },
         ),
       ),
-      darkTheme: AppTheme.darkTheme.copyWith(
+      darkTheme: AppTheme.createTheme(accentColor, Brightness.dark).copyWith(
         pageTransitionsTheme: const PageTransitionsTheme(
           builders: {
             TargetPlatform.android: CupertinoPageTransitionsBuilder(),
@@ -134,13 +136,13 @@ class _RootScaffoldState extends ConsumerState<_RootScaffold>
   late final AnimationController _fabAnimationController;
   late final Animation<double> _fabAnimation;
 
-  static const _pages = <Widget>[
-    HomePage(),
-    SearchPage(),
-    DownloadsPage(),
-    MediaLibraryPage(),
-    SettingsPage(),
-    AboutPage(),
+  static final _pages = <Widget>[
+    const HomePage(),
+    const SearchPage(),
+    const DownloadsPage(),
+    const MediaLibraryPage(),
+    const SettingsPage(),
+    const AboutPage(),
   ];
 
   static const _pageTitles = [

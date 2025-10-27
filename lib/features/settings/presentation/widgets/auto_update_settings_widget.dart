@@ -67,9 +67,9 @@ class _AutoUpdateSettingsWidgetState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.red.withOpacity(0.1),
+        color: Colors.red.withAlpha(25),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.red.withOpacity(0.3)),
+        border: Border.all(color: Colors.red.withAlpha(77)),
       ),
       child: Column(
         children: [
@@ -207,7 +207,7 @@ class _AutoUpdateSettingsWidgetState
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+        color: colorScheme.surfaceContainerHighest.withAlpha(128),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(

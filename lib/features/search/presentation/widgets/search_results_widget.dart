@@ -27,7 +27,7 @@ class SearchResultsWidget extends ConsumerWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withAlpha(26),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -169,7 +169,7 @@ class SearchResultsWidget extends ConsumerWidget {
       itemCount: results.length,
       separatorBuilder: (context, index) => Divider(
         height: 1,
-        color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+        color: Theme.of(context).colorScheme.outline.withAlpha(51),
       ),
       itemBuilder: (context, index) {
         final result = results[index];

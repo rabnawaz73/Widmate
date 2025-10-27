@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:widmate/core/models/download_models.dart';
 import 'package:widmate/core/services/video_download_service.dart';
 
 class PlaylistSelectionWidget extends StatefulWidget {

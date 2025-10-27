@@ -110,8 +110,8 @@ class DownloadService {
       totalBytes: 0,
       downloadedBytes: 0,
       progress: 0.0,
-      speed: 0,
-      eta: 0,
+      speed: null,
+      eta: null,
       status: model.DownloadStatus.queued,
       createdAt: DateTime.now(),
     );
@@ -149,47 +149,7 @@ class DownloadService {
     }
   }
 
-  int _parseSpeed(String? speedStr) {
-    if (speedStr == null || speedStr.toLowerCase() == 'na') return 0;
-    try {
-      // e.g., "1.23MiB/s", "512.4KiB/s", "10.0B/s"
-      final sanitized = speedStr.replaceAll('/s', '').trim();
-      final valueStr = sanitized.replaceAll(RegExp(r'[a-zA-Z]'), '').trim();
-      final unit = sanitized.replaceAll(RegExp(r'[0-9.\\s]'), '').toUpperCase();
 
-      final value = double.parse(valueStr);
-
-      if (unit.startsWith('K')) {
-        return (value * 1024).toInt();
-      } else if (unit.startsWith('M')) {
-        return (value * 1024 * 1024).toInt();
-      } else if (unit.startsWith('G')) {
-        return (value * 1024 * 1024 * 1024).toInt();
-      } else {
-        // B for Bytes
-        return value.toInt();
-      }
-    } catch (e) {
-      Logger.warning('Could not parse speed: $speedStr', e);
-      return 0;
-    }
-  }
-
-  int _parseEta(String? etaStr) {
-    if (etaStr == null || etaStr.toLowerCase() == 'unknown') return 0;
-    try {
-      // e.g., "01:23:45", "23:45", "45"
-      final parts = etaStr.split(':').map(int.parse).toList().reversed.toList();
-      int seconds = 0;
-      if (parts.isNotEmpty) seconds += parts[0]; // seconds
-      if (parts.length > 1) seconds += parts[1] * 60; // minutes
-      if (parts.length > 2) seconds += parts[2] * 3600; // hours
-      return seconds;
-    } catch (e) {
-      Logger.warning('Could not parse ETA: $etaStr', e);
-      return 0;
-    }
-  }
 
   // Start actual download process
   Future<void> _startDownloadProcess(model.DownloadItem download) async {
@@ -216,28 +176,28 @@ class DownloadService {
         // Update download item with new status
         updatedDownload = updatedDownload.copyWith(
           progress: status.progress,
-          speed: _parseSpeed(status.speed),
-          eta: _parseEta(status.eta),
+          speed: () => status.speed,
+          eta: () => status.eta,
           downloadedBytes: status.downloadedBytes,
-          totalBytes: status.totalBytes,
+          totalBytes: () => status.totalBytes,
         );
 
-        if (status.isDownloading) {
+        if (status.status == 'downloading') {
           await _downloadRepository.updateDownload(updatedDownload);
           await _notificationService.updateDownloadProgress(updatedDownload);
-        } else if (status.isCompleted) {
+        } else if (status.status == 'completed') {
           timer.cancel();
           _activeDownloads.remove(download.id);
 
           // Download the file from backend to device storage
           final finalPath = await _videoDownloadService.downloadFile(
-              download.id, status.filename ?? download.fileName);
+              download.id, status.filename ?? download.fileName ?? download.title);
 
           updatedDownload = updatedDownload.copyWith(
             status: model.DownloadStatus.completed,
             progress: 1.0,
-            filePath: finalPath,
-            fileName: status.filename ?? download.fileName,
+            filePath: () => finalPath,
+            fileName: () => status.filename ?? download.fileName,
             completedAt: () => DateTime.now(),
           );
           await _downloadRepository.updateDownload(updatedDownload);
@@ -246,7 +206,7 @@ class DownloadService {
             model.DownloadCompletedEvent(download.id, finalPath),
           );
           _processQueue();
-        } else if (status.isFailed) {
+        } else if (status.status == 'failed') {
           timer.cancel();
           _activeDownloads.remove(download.id);
           updatedDownload = updatedDownload.copyWith(
@@ -260,7 +220,7 @@ class DownloadService {
                 download.id, status.error ?? 'Unknown error'),
           );
           _processQueue();
-        } else if (status.isCancelled) {
+        } else if (status.status == 'cancelled') {
           timer.cancel();
           _activeDownloads.remove(download.id);
           // The cancelDownload method handles the rest.
@@ -342,9 +302,11 @@ class DownloadService {
 
       // Delete the partial file
       try {
-        final file = File(download.filePath);
-        if (await file.exists()) {
-          await file.delete();
+        if (download.filePath != null) {
+          final file = File(download.filePath!);
+          if (await file.exists()) {
+            await file.delete();
+          }
         }
       } catch (e) {
         debugPrint('Error deleting file: $e');
@@ -363,8 +325,8 @@ class DownloadService {
         status: model.DownloadStatus.queued,
         downloadedBytes: 0,
         progress: 0.0,
-        speed: 0,
-        eta: 0,
+        speed: () => null,
+        eta: () => null,
         error: () => null,
       );
       await _downloadRepository.updateDownload(updatedDownload);
@@ -383,9 +345,11 @@ class DownloadService {
     if (download != null) {
       // Delete the file if it exists
       try {
-        final file = File(download.filePath);
-        if (await file.exists()) {
-          await file.delete();
+        if (download.filePath != null) {
+          final file = File(download.filePath!);
+          if (await file.exists()) {
+            await file.delete();
+          }
         }
       } catch (e) {
         debugPrint('Error deleting file: $e');
@@ -487,8 +451,8 @@ class DownloadService {
         progress: 0.0,
         downloadedBytes: 0,
         totalBytes: 0,
-        speed: 0,
-        eta: 0,
+        speed: null,
+        eta: null,
         createdAt: DateTime.now(),
       );
 

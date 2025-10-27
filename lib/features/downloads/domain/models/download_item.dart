@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'dart:math';
+import 'package:widmate/core/models/download_models.dart' as backend_models; // Alias for backend models
 
 enum DownloadStatus {
   queued,
@@ -24,13 +25,13 @@ class DownloadItem {
   final String title;
   final String? thumbnailUrl;
   final DownloadPlatform platform;
-  final String filePath;
-  final String fileName;
-  final int totalBytes;
+  final String? filePath; // Made nullable
+  final String? fileName; // Made nullable
+  final int? totalBytes; // Made nullable
   final int downloadedBytes;
   final double progress;
-  final int speed; // bytes per second
-  final int eta; // seconds
+  final String? speed; // Changed to String?
+  final String? eta; // Changed to String?
   final DownloadStatus status;
   final DateTime createdAt;
   final DateTime? completedAt;
@@ -38,7 +39,7 @@ class DownloadItem {
   
   // Helper methods for formatting values
   String getFormattedFileSize() {
-    return _formatBytes(totalBytes);
+    return _formatBytes(totalBytes ?? 0);
   }
   
   String getFormattedDownloadedSize() {
@@ -46,23 +47,11 @@ class DownloadItem {
   }
   
   String getFormattedSpeed() {
-    return '${_formatBytes(speed)}/s';
+    return speed != null ? '$speed/s' : '0 B/s';
   }
   
   String getFormattedETA() {
-    if (eta <= 0) return 'Calculating...';
-    
-    final hours = eta ~/ 3600;
-    final minutes = (eta % 3600) ~/ 60;
-    final seconds = eta % 60;
-    
-    if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    } else if (minutes > 0) {
-      return '${minutes}m ${seconds}s';
-    } else {
-      return '${seconds}s';
-    }
+    return eta ?? 'Calculating...';
   }
   
   String _formatBytes(int bytes) {
@@ -75,36 +64,78 @@ class DownloadItem {
 
   DownloadItem({
     required this.id,
-    required this.url,
     required this.title,
     this.thumbnailUrl,
     required this.platform,
-    required this.filePath,
-    required this.fileName,
-    required this.totalBytes,
+    this.filePath,
+    this.fileName,
+    this.totalBytes,
     required this.downloadedBytes,
     required this.progress,
-    required this.speed,
-    required this.eta,
+    this.speed,
+    this.eta,
     required this.status,
     required this.createdAt,
     this.completedAt,
     this.error,
+    required this.url,
   });
+
+  // Factory constructor to create DownloadItem from backend_models.DownloadStatus
+  factory DownloadItem.fromBackendDownloadStatus(backend_models.DownloadStatus backendStatus, {required String url, String? title, String? thumbnailUrl, DownloadPlatform? platform}) {
+    DownloadStatus mappedStatus;
+    switch (backendStatus.status) {
+      case 'pending':
+        mappedStatus = DownloadStatus.queued;
+        break;
+      case 'downloading':
+        mappedStatus = DownloadStatus.downloading;
+        break;
+      case 'completed':
+        mappedStatus = DownloadStatus.completed;
+        break;
+      case 'failed':
+        mappedStatus = DownloadStatus.failed;
+        break;
+      case 'cancelled':
+        mappedStatus = DownloadStatus.canceled;
+        break;
+      default:
+        mappedStatus = DownloadStatus.queued; // Default or handle unknown status
+    }
+
+    return DownloadItem(
+      id: backendStatus.id,
+      url: url, // Assuming url is always present in backendStatus
+      title: title ?? 'Unknown Title',
+      thumbnailUrl: thumbnailUrl,
+      platform: platform ?? DownloadPlatform.other,
+      filePath: backendStatus.filename, // Backend filename maps to filePath
+      fileName: backendStatus.filename?.split('/').last,
+      totalBytes: backendStatus.totalBytes,
+      downloadedBytes: backendStatus.downloadedBytes,
+      progress: backendStatus.progress / 100.0, // Convert percentage to 0.0-1.0
+      speed: backendStatus.speed,
+      eta: backendStatus.eta,
+      status: mappedStatus,
+      createdAt: backendStatus.createdAt,
+      completedAt: backendStatus.updatedAt, // Using updatedAt as completedAt for simplicity
+      error: backendStatus.error,
+    );
+  }
 
   DownloadItem copyWith({
     String? id,
-    String? url,
     String? title,
     ValueGetter<String?>? thumbnailUrl,
     DownloadPlatform? platform,
-    String? filePath,
-    String? fileName,
-    int? totalBytes,
+    ValueGetter<String?>? filePath,
+    ValueGetter<String?>? fileName,
+    ValueGetter<int?>? totalBytes,
     int? downloadedBytes,
     double? progress,
-    int? speed,
-    int? eta,
+    ValueGetter<String?>? speed,
+    ValueGetter<String?>? eta,
     DownloadStatus? status,
     DateTime? createdAt,
     ValueGetter<DateTime?>? completedAt,
@@ -112,17 +143,17 @@ class DownloadItem {
   }) {
     return DownloadItem(
       id: id ?? this.id,
-      url: url ?? this.url,
+      url: url,
       title: title ?? this.title,
       thumbnailUrl: thumbnailUrl != null ? thumbnailUrl() : this.thumbnailUrl,
       platform: platform ?? this.platform,
-      filePath: filePath ?? this.filePath,
-      fileName: fileName ?? this.fileName,
-      totalBytes: totalBytes ?? this.totalBytes,
+      filePath: filePath != null ? filePath() : this.filePath,
+      fileName: fileName != null ? fileName() : this.fileName,
+      totalBytes: totalBytes != null ? totalBytes() : this.totalBytes,
       downloadedBytes: downloadedBytes ?? this.downloadedBytes,
       progress: progress ?? this.progress,
-      speed: speed ?? this.speed,
-      eta: eta ?? this.eta,
+      speed: speed != null ? speed() : this.speed,
+      eta: eta != null ? eta() : this.eta,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       completedAt: completedAt != null ? completedAt() : this.completedAt,
@@ -196,16 +227,16 @@ class DownloadItem {
 
   // Helper method to get formatted file size
   String get formattedFileSize {
-    if (totalBytes == 0) return '0 B';
+    if (totalBytes == null || totalBytes! <= 0) return '0 B';
     
     final suffixes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    final i = (log(totalBytes) / log(1024)).floor();
-    return '${(totalBytes / pow(1024, i)).toStringAsFixed(2)} ${suffixes[i]}';
+    final i = (log(totalBytes!) / log(1024)).floor();
+    return '${(totalBytes! / pow(1024, i)).toStringAsFixed(2)} ${suffixes[i]}';
   }
 
   // Helper method to get formatted downloaded size
   String get formattedDownloadedSize {
-    if (downloadedBytes == 0) return '0 B';
+    if (downloadedBytes <= 0) return '0 B';
     
     final suffixes = ['B', 'KB', 'MB', 'GB', 'TB'];
     final i = (log(downloadedBytes) / log(1024)).floor();
@@ -214,27 +245,18 @@ class DownloadItem {
 
   // Helper method to get formatted speed
   String get formattedSpeed {
-    if (speed == 0) return '0 B/s';
-    
-    final suffixes = ['B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s'];
-    final i = (log(speed) / log(1024)).floor();
-    return '${(speed / pow(1024, i)).toStringAsFixed(2)} ${suffixes[i]}';
+    return speed ?? '0 B/s';
   }
 
   // Helper method to get formatted ETA
   String get formattedEta {
-    if (eta == 0) return '0s';
-    
-    final hours = eta ~/ 3600;
-    final minutes = (eta % 3600) ~/ 60;
-    final seconds = eta % 60;
-    
-    if (hours > 0) {
-      return '${hours}h ${minutes}m ${seconds}s';
-    } else if (minutes > 0) {
-      return '${minutes}m ${seconds}s';
-    } else {
-      return '${seconds}s';
+    return eta ?? '0s';
+  }
+
+  String get fileExtension {
+    if (fileName != null && fileName!.contains('.')) {
+      return fileName!.split('.').last;
     }
+    return 'mp4'; // Default extension
   }
 }

@@ -27,9 +27,9 @@ class AutoUpdater:
         self.last_check = 0
         self.check_interval = 24 * 60 * 60  # 24 hours in seconds
         self.auto_update_enabled = True
-        self.notify_on_update = True
+        self.notify_on_update = False
         self.update_on_startup = True
-        self.silent_updates = False
+        self.silent_updates = True
         
         # Update status tracking
         self.update_status = {
@@ -262,55 +262,4 @@ class AutoUpdater:
             "update_status": self.update_status
         }
     
-    def configure(self, **kwargs):
-        """Update auto-updater configuration"""
-        if "enabled" in kwargs:
-            self.auto_update_enabled = kwargs["enabled"]
-        if "check_interval_hours" in kwargs:
-            self.check_interval = kwargs["check_interval_hours"] * 3600
-        if "notify_on_update" in kwargs:
-            self.notify_on_update = kwargs["notify_on_update"]
-        if "update_on_startup" in kwargs:
-            self.update_on_startup = kwargs["update_on_startup"]
-        if "silent_updates" in kwargs:
-            self.silent_updates = kwargs["silent_updates"]
-        
-        self._save_config()
-        logger.info(f"Auto-updater configured: {kwargs}")
     
-    def force_check(self):
-        """Force an immediate update check"""
-        logger.info("Forced update check triggered")
-        asyncio.create_task(self._check_and_update_async())
-    
-    def force_update(self):
-        """Force an immediate update"""
-        logger.info("Forced update triggered")
-        asyncio.create_task(self._update_ytdlp_silent())
-
-# Global auto-updater instance
-auto_updater = AutoUpdater()
-
-def start_auto_updater():
-    """Start the auto-updater service"""
-    auto_updater.start()
-
-def stop_auto_updater():
-    """Stop the auto-updater service"""
-    auto_updater.stop()
-
-def get_auto_updater_status():
-    """Get auto-updater status"""
-    return auto_updater.get_status()
-
-def configure_auto_updater(**kwargs):
-    """Configure auto-updater settings"""
-    auto_updater.configure(**kwargs)
-
-def force_update_check():
-    """Force an immediate update check"""
-    auto_updater.force_check()
-
-def force_update():
-    """Force an immediate update"""
-    auto_updater.force_update()
