@@ -89,9 +89,14 @@ def check_rate_limit(client_ip: str, max_requests: int = RATE_LIMIT_MAX_REQUESTS
     return True
 
 # CORS middleware
+origins = [
+    "http://localhost:3000",
+    "https://app.widmate.com",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -100,13 +105,15 @@ app.add_middleware(
 # Configure logging
 logger.add("logs/widmate_backend.log", rotation="10 MB", retention="7 days")
 
+from storage import save_download_tasks, load_download_tasks
+
 # Global storage for download tasks
-download_tasks: Dict[str, Dict[str, Any]] = {}
+download_tasks: Dict[str, Dict[str, Any]] = load_download_tasks()
 download_lock = threading.Lock()
 
 # Create directories
-DOWNLOADS_DIR = Path("downloads")
-LOGS_DIR = Path("logs")
+DOWNLOADS_DIR = Path(os.getenv("DOWNLOADS_DIR", "downloads"))
+LOGS_DIR = Path(os.getenv("LOGS_DIR", "logs"))
 DOWNLOADS_DIR.mkdir(exist_ok=True)
 LOGS_DIR.mkdir(exist_ok=True)
 
@@ -218,6 +225,7 @@ def get_ydl_opts(download_id: str, format_id: Optional[str] = None, quality: str
         'ignoreerrors': True,
         'no_warnings': False,
         'extractflat': False,
+        'max_filesize': 1024 * 1024 * 1024,  # 1GB
     }
 
 def progress_hook(d: Dict[str, Any], download_id: str):
@@ -248,6 +256,7 @@ def progress_hook(d: Dict[str, Any], download_id: str):
             logger.error(f"Download failed: {download_id} - {task['error']}")
         
         task['updated_at'] = datetime.now()
+        save_download_tasks(download_tasks)
 
 def download_video_task(download_id: str, url: str, ydl_opts: Dict[str, Any]):
     """Background task to download video"""
@@ -265,6 +274,7 @@ def download_video_task(download_id: str, url: str, ydl_opts: Dict[str, Any]):
                 download_tasks[download_id]['status'] = 'failed'
                 download_tasks[download_id]['error'] = str(e)
                 download_tasks[download_id]['updated_at'] = datetime.now()
+                save_download_tasks(download_tasks)
         logger.error(f"Download error: {download_id} - {str(e)}")
 
 # Global variable to store version check information
@@ -468,6 +478,11 @@ async def get_video_info(request: Request, video_request: VideoInfoRequest) -> V
     try:
         logger.info(f"Getting info for: {video_request.url}")
         
+        if video_request.playlist_info and video_request.playlist_items:
+            playlist_items = video_request.playlist_items.split(',')
+            if len(playlist_items) > 50:
+                raise HTTPException(status_code=400, detail="Cannot request more than 50 playlist items")
+        
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
@@ -542,10 +557,10 @@ async def get_video_info(request: Request, video_request: VideoInfoRequest) -> V
             
     except yt_dlp.DownloadError as e:
         logger.error(f"yt-dlp error: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Download error: {str(e)}")
+        raise HTTPException(status_code=400, detail="Could not retrieve video information")
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.post("/download")
 async def start_download(request: Request, download_request: DownloadRequest, background_tasks: BackgroundTasks) -> Dict[str, str]:
@@ -573,6 +588,7 @@ async def start_download(request: Request, download_request: DownloadRequest, ba
                 'created_at': datetime.now(),
                 'updated_at': datetime.now()
             }
+            save_download_tasks(download_tasks)
         
         # Get yt-dlp options
         ydl_opts = get_ydl_opts(
@@ -604,7 +620,7 @@ async def start_download(request: Request, download_request: DownloadRequest, ba
         
     except Exception as e:
         logger.error(f"Error starting download: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to start download: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to start download")
 
 @app.get("/status/{download_id}")
 async def get_download_status(download_id: str) -> DownloadStatus:
@@ -629,12 +645,23 @@ async def get_downloaded_file(download_id: str):
             raise HTTPException(status_code=400, detail="Download not completed")
         
         filename = task.get('filename')
-        if not filename or not os.path.exists(filename):
+        if not filename:
+            raise HTTPException(status_code=404, detail="File not found")
+
+        # Security fix: Prevent path traversal
+        safe_dir = Path(DOWNLOADS_DIR).resolve()
+        file_path = Path(filename).resolve()
+
+        if not file_path.is_relative_to(safe_dir):
+            logger.warning(f"Path traversal attempt blocked for download_id: {download_id}, path: {filename}")
+            raise HTTPException(status_code=404, detail="File not found")
+
+        if not file_path.exists():
             raise HTTPException(status_code=404, detail="File not found")
         
         return FileResponse(
-            path=filename,
-            filename=os.path.basename(filename),
+            path=str(file_path),
+            filename=file_path.name,
             media_type='application/octet-stream'
         )
 
@@ -652,6 +679,7 @@ async def cancel_download(download_id: str) -> Dict[str, str]:
         
         task['status'] = 'cancelled'
         task['updated_at'] = datetime.now()
+        save_download_tasks(download_tasks)
         
         logger.info(f"Download cancelled: {download_id}")
         
@@ -708,6 +736,13 @@ async def get_auto_updater_status():
     return get_auto_updater_status()
 
 
+rate_limiter = {}
+
+import re
+
+def sanitize_search_query(query: str) -> str:
+    """Sanitize search query to prevent injection attacks"""
+    return re.sub(r'[^a-zA-Z0-9\s-]', '', query)
 
 @app.post("/search", response_model=SearchResponse)
 async def search_videos(request: Request, search_request: SearchRequest) -> SearchResponse:
@@ -725,6 +760,9 @@ async def search_videos(request: Request, search_request: SearchRequest) -> Sear
         
         rate_limiter[client_ip] = current_time
         
+        # Sanitize search query
+        sanitized_query = sanitize_search_query(search_request.query)
+        
         # Configure yt-dlp for search
         ydl_opts = {
             'quiet': True,
@@ -737,7 +775,7 @@ async def search_videos(request: Request, search_request: SearchRequest) -> Sear
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             # Search for videos
-            search_query = f"ytsearch{search_request.limit}:{search_request.query}"
+            search_query = f"ytsearch{search_request.limit}:{sanitized_query}"
             info = ydl.extract_info(search_query, download=False)
             
             if info and 'entries' in info:
@@ -767,10 +805,10 @@ async def search_videos(request: Request, search_request: SearchRequest) -> Sear
         
     except yt_dlp.DownloadError as e:
         logger.error(f"Search error: {e}")
-        raise HTTPException(status_code=400, detail=f"Search failed: {str(e)}")
+        raise HTTPException(status_code=400, detail="Search failed")
     except Exception as e:
         logger.error(f"Unexpected search error: {e}")
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Search failed")
 
 if __name__ == "__main__":
     import uvicorn

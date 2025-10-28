@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:widmate/core/providers/video_download_provider.dart';
-import 'package:widmate/core/services/video_download_service.dart';
 import 'package:widmate/features/downloads/domain/models/download_item.dart';
 import 'package:widmate/features/downloads/presentation/controllers/download_controller.dart';
 import 'package:widmate/features/home/presentation/widgets/playlist_selection_widget.dart';

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:widmate/app/app.dart';
+import 'package:widmate/app/src/services/settings_service.dart';
+import 'package:widmate/core/constants/app_constants.dart';
 import 'package:widmate/features/shared_content/services/shared_content_service.dart';
 import 'package:widmate/features/downloads/domain/services/download_service.dart';
 import 'package:widmate/features/clipboard/services/clipboard_monitor_service.dart';
@@ -45,6 +47,14 @@ class AppInitializer {
   AppInitializer(this.container);
 
   Future<void> init() async {
+    // Settings
+    await safeInit('Settings Service', () async {
+      final settingsService = container.read(settingsServiceProvider);
+      final baseUrl = await settingsService.getBaseUrl();
+      AppConstants.baseUrl = baseUrl;
+      container.read(baseUrlProvider.notifier).state = baseUrl;
+    });
+
     final downloadService = container.read(downloadServiceProvider);
 
     // Background downloads

@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
+import 'package:widmate/core/constants/app_constants.dart';
+
 /// Auto-updater service for managing yt-dlp updates
 class AutoUpdateService {
-  static const String _baseUrl = 'http://127.0.0.1:8000';
+  static final String _baseUrl = AppConstants.baseUrl;
   
   /// Get auto-updater status
   static Future<AutoUpdateStatus> getStatus() async {

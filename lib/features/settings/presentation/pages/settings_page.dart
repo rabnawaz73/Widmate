@@ -340,8 +340,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           children: [
             Text('Layout', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
-            RadioListTile<String>(
-              title: const Text('Comfortable'),
+            RadioMenuButton<String>(
               value: 'Comfortable',
               groupValue: currentLayout,
               onChanged: (value) {
@@ -349,9 +348,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ref.read(layoutProvider.notifier).state = value;
                 }
               },
+              child: const Text('Comfortable'),
             ),
-            RadioListTile<String>(
-              title: const Text('Compact'),
+            RadioMenuButton<String>(
               value: 'Compact',
               groupValue: currentLayout,
               onChanged: (value) {
@@ -359,6 +358,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ref.read(layoutProvider.notifier).state = value;
                 }
               },
+              child: const Text('Compact'),
             ),
           ],
         ),

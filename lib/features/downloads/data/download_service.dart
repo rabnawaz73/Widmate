@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:widmate/core/constants/app_constants.dart';
 import 'package:widmate/core/models/download_models.dart';
 
 class DownloadService {
-  final String _baseUrl = 'http://127.0.0.1:8000'; // Replace with your backend URL
+  final String _baseUrl = AppConstants.baseUrl;
 
   Future<VideoInfo> getVideoInfo(String url) async {
     final response = await http.post(

@@ -11,7 +11,7 @@ import 'package:widmate/core/models/download_models.dart';
 
 /// Service class for communicating with the WidMate backend API
 class VideoDownloadService {
-  static const String _baseUrl = AppConstants.baseUrl;
+  static final String _baseUrl = AppConstants.baseUrl;
   static const Duration _timeout = AppConstants.apiTimeout;
 
   final http.Client _client = http.Client();
