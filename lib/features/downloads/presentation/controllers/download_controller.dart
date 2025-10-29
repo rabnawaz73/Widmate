@@ -55,6 +55,7 @@ class DownloadController extends Notifier<AsyncValue<List<DownloadItem>>> {
   late final SharedPreferences _prefs; // SharedPreferences instance
   late final NotificationService _notificationService; // NotificationService instance
   Timer? _refreshTimer;
+  List<DownloadItem> _previousDownloads = [];
 
   @override
   AsyncValue<List<DownloadItem>> build() {
@@ -130,11 +131,14 @@ class DownloadController extends Notifier<AsyncValue<List<DownloadItem>>> {
         mergedDownloads[item.id] = item;
       }
 
-      state = AsyncValue.data(mergedDownloads.values.toList());
+      final newDownloads = mergedDownloads.values.toList();
+      _updateNotifications(newDownloads);
+      _previousDownloads = newDownloads;
+      state = AsyncValue.data(newDownloads);
     } catch (e, stack) {
       final appError = ErrorFactory.fromException(e, stack);
       appError.log();
-      _handleError(appError, downloadId: downloadId);
+      _handleError(appError);
     }
   }
 
@@ -205,7 +209,7 @@ class DownloadController extends Notifier<AsyncValue<List<DownloadItem>>> {
     } catch (e, stack) {
       final appError = ErrorFactory.fromException(e, stack);
       appError.log();
-      _handleError(appError, downloadId: downloadId);
+      _handleError(appError);
     }
   }
 
@@ -221,7 +225,7 @@ class DownloadController extends Notifier<AsyncValue<List<DownloadItem>>> {
     } catch (e, stack) {
       final appError = ErrorFactory.fromException(e, stack);
       appError.log();
-      _handleError(appError, downloadId: downloadId);
+      _handleError(appError);
     }
   }
 
@@ -285,7 +289,7 @@ class DownloadController extends Notifier<AsyncValue<List<DownloadItem>>> {
     } catch (e, stack) {
       final appError = ErrorFactory.fromException(e, stack);
       appError.log();
-      _handleError(appError, downloadId: downloadId);
+      _handleError(appError);
     }
   }
 
@@ -354,7 +358,7 @@ class DownloadController extends Notifier<AsyncValue<List<DownloadItem>>> {
     } catch (e, stack) {
       final appError = ErrorFactory.fromException(e, stack);
       appError.log();
-      _handleError(appError, downloadId: downloadId);
+      _handleError(appError);
     }
   }
 
@@ -367,7 +371,7 @@ class DownloadController extends Notifier<AsyncValue<List<DownloadItem>>> {
     } catch (e, stack) {
       final appError = ErrorFactory.fromException(e, stack);
       appError.log();
-      _handleError(appError, downloadId: downloadId);
+      _handleError(appError);
     }
   }
 
@@ -400,6 +404,25 @@ class DownloadController extends Notifier<AsyncValue<List<DownloadItem>>> {
         return DownloadPlatform.facebook;
       default:
         return DownloadPlatform.other;
+    }
+  }
+
+  void _updateNotifications(List<DownloadItem> newDownloads) {
+    for (final newDownload in newDownloads) {
+      final oldDownload = _previousDownloads.firstWhere(
+        (d) => d.id == newDownload.id,
+        orElse: () => newDownload,
+      );
+
+      if (newDownload.status == DownloadStatus.downloading) {
+        _notificationService.updateDownloadProgress(newDownload);
+      } else if (newDownload.status == DownloadStatus.completed &&
+          oldDownload.status != DownloadStatus.completed) {
+        _notificationService.showDownloadCompleted(newDownload);
+      } else if (newDownload.status == DownloadStatus.failed &&
+          oldDownload.status != DownloadStatus.failed) {
+        _notificationService.showDownloadFailed(newDownload);
+      }
     }
   }
 

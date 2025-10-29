@@ -383,382 +383,19 @@ class _HomePageState extends ConsumerState<HomePage>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Welcome Section
-              Card(
-                elevation: 0,
-                color: colorScheme.primaryContainer,
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Welcome to WidMate',
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          color: colorScheme.onPrimaryContainer,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Download videos from your favorite platforms',
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: colorScheme.onPrimaryContainer.withAlpha(
-                            204,
-                          ), // 0.8 opacity
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              _buildWelcomeSection(theme, colorScheme),
               const SizedBox(height: 24),
 
               // URL Input Section
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Enter Video URL',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _urlController,
-                        decoration: InputDecoration(
-                          hintText:
-                              'Paste one or more video URLs here (one per line)...',
-                          prefixIcon: const Icon(Icons.link),
-                          suffixIcon: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.search),
-                                onPressed: () =>
-                                    _fetchVideoInfo(_urlController.text),
-                                tooltip: 'Fetch video info',
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.content_paste),
-                                onPressed: _detectClipboard,
-                                tooltip: 'Paste from clipboard',
-                              ),
-                            ],
-                          ),
-                          border: const OutlineInputBorder(),
-                          filled: true,
-                        ),
-                        maxLines: 5,
-                        minLines: 3,
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: () {
-                                if (_isLoading) return;
-
-                                final urls = _urlController.text
-                                    .split('\n')
-                                    .where((url) => url.trim().isNotEmpty)
-                                    .toList();
-
-                                if (urls.length > 1) {
-                                  _startBatchDownload(urls);
-                                } else {
-                                  _startDownload();
-                                }
-                              },
-                              icon: _isLoading
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(Icons.download),
-                              label: Text(
-                                _isLoading ? 'Fetching...' : 'Download',
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          if (ref.watch(downloadPresetProvider).isNotEmpty)
-                            DropdownButton<DownloadPreset>(
-                              value: _selectedPreset,
-                              hint: const Text('Preset'),
-                              items: ref.watch(downloadPresetProvider)
-                                  .map((preset) => DropdownMenuItem(
-                                        value: preset,
-                                        child: Text(preset.name),
-                                      ))
-                                  .toList(),
-                              onChanged: (preset) {
-                                if (preset != null) {
-                                  setState(() {
-                                    _selectedPreset = preset;
-                                    _selectedQuality = preset.quality;
-                                    _audioOnly = preset.audioOnly;
-                                  });
-                                }
-                              },
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              _buildUrlInputSection(theme, colorScheme),
               const SizedBox(height: 24),
 
-              // Video Info Display (Single Video or Playlist)
-              if (_videoInfo != null && !_videoInfo!.isPlaylist) ...[
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.video_library,
-                              color: colorScheme.primary,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Video Information',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (_videoInfo!.thumbnail != null)
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
-                                  _videoInfo!.thumbnail!,
-                                  width: 120,
-                                  height: 68,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      Container(
-                                        width: 120,
-                                        height: 68,
-                                        color:
-                                            colorScheme.surfaceContainerHighest,
-                                        child: Icon(
-                                          Icons.video_library,
-                                          color: colorScheme.outline,
-                                        ),
-                                      ),
-                                ),
-                              ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _videoInfo!.title,
-                                    style: theme.textTheme.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  if (_videoInfo!.uploader != null) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _videoInfo!.uploader!,
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                            color: colorScheme.outline,
-                                          ),
-                                    ),
-                                  ],
-                                  if (_videoInfo!.duration != null) ...[
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.access_time,
-                                          size: 14,
-                                          color: colorScheme.outline,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          _formatDuration(
-                                            _videoInfo!.duration!,
-                                          ),
-                                          style: theme.textTheme.bodySmall
-                                              ?.copyWith(
-                                                color: colorScheme.outline,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (_videoInfo != null &&
-                    !_videoInfo!.isPlaylist &&
-                    _videoInfo!.formats.isNotEmpty) ...[
-                  DropdownButtonFormField<String>(
-                    initialValue: _selectedFormatId,
-                    decoration: const InputDecoration(
-                      labelText: 'Select Format',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: _videoInfo!.formats.map((format) {
-                      String label = '';
-                      if (format.resolution != '0x0') {
-                        label += '${format.resolution} ';
-                      }
-                      label += '${format.ext} ';
-                      if (format.vcodec != null && format.vcodec != 'none') {
-                        label += '(${format.vcodec}) ';
-                      }
-                      if (format.acodec != null && format.acodec != 'none') {
-                        label += '(${format.acodec}) ';
-                      }
-                      if (format.filesize != null) {
-                        label += ' - ${(format.filesize! / (1024 * 1024)).toStringAsFixed(2)} MB';
-                      }
-                      return DropdownMenuItem(
-                        value: format.formatId,
-                        child: Text(label.trim()),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedFormatId = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ],
+              // Video Info Display
+              if (_videoInfo != null)
+                _buildVideoInfoSection(theme, colorScheme),
 
-              // Playlist Selection
-              if (_videoInfo != null && _videoInfo!.isPlaylist) ...[
-                PlaylistSelectionWidget(
-                  playlistInfo: _videoInfo!,
-                  onSelectionChanged: (selectedIndices) {
-                    // Handle selection change if needed
-                  },
-                  onDownloadRequested: _startPlaylistDownload,
-                ),
-                const SizedBox(height: 16),
-              ],
-
-              // Supported Platforms Carousel
-              Text(
-                'Supported Platforms',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 120,
-                child: PageView.builder(
-                  controller: _pageController,
-                  itemCount: _supportedPlatforms.length,
-                  onPageChanged: (index) {
-                    setState(() {
-                      _currentPlatform = index;
-                    });
-                  },
-                  itemBuilder: (context, index) {
-                    final platform = _supportedPlatforms[index];
-                    return AnimatedBuilder(
-                      animation: _bannerController,
-                      builder: (context, child) {
-                        return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 8),
-                          decoration: BoxDecoration(
-                            gradient: platform['gradient'],
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: (platform['color'] as Color).withAlpha(
-                                  77,
-                                ), // 0.3 opacity
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  platform['icon'],
-                                  size: 32,
-                                  color: colorScheme.onPrimary,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  platform['name'],
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    color: colorScheme.onPrimary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Platform Indicators
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  _supportedPlatforms.length,
-                  (index) => Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _currentPlatform == index
-                          ? colorScheme.primary
-                          : colorScheme.outline.withAlpha(77), // 0.3 opacity
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Footer space
-              const SizedBox(height: 16),
+              // Supported Platforms
+              _buildSupportedPlatformsSection(theme, colorScheme),
             ],
           ),
         ),
@@ -1493,6 +1130,348 @@ class _HomePageState extends ConsumerState<HomePage>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildWelcomeSection(ThemeData theme, ColorScheme colorScheme) {
+    return Card(
+      elevation: 0,
+      color: colorScheme.primaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Welcome to WidMate',
+              style: theme.textTheme.headlineMedium?.copyWith(
+                color: colorScheme.onPrimaryContainer,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Download videos from your favorite platforms',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: colorScheme.onPrimaryContainer.withAlpha(204),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUrlInputSection(ThemeData theme, ColorScheme colorScheme) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Enter Video URL',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _urlController,
+              decoration: InputDecoration(
+                hintText: 'Paste one or more video URLs here...',
+                prefixIcon: const Icon(Icons.link),
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.search),
+                      onPressed: () => _fetchVideoInfo(_urlController.text),
+                      tooltip: 'Fetch video info',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.content_paste),
+                      onPressed: _detectClipboard,
+                      tooltip: 'Paste from clipboard',
+                    ),
+                  ],
+                ),
+                border: const OutlineInputBorder(),
+                filled: true,
+              ),
+              maxLines: 5,
+              minLines: 3,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () {
+                if (_isLoading) return;
+
+                final urls = _urlController.text
+                    .split('\n')
+                    .where((url) => url.trim().isNotEmpty)
+                    .toList();
+
+                if (urls.length > 1) {
+                  _startBatchDownload(urls);
+                } else {
+                  _startDownload();
+                }
+              },
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.download),
+              label: Text(
+                _isLoading ? 'Fetching...' : 'Download',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVideoInfoSection(ThemeData theme, ColorScheme colorScheme) {
+    if (_videoInfo == null) {
+      return const SizedBox.shrink();
+    }
+
+    if (_videoInfo!.isPlaylist) {
+      return PlaylistSelectionWidget(
+        playlistInfo: _videoInfo!,
+        onSelectionChanged: (selectedIndices) {
+          // Handle selection change if needed
+        },
+        onDownloadRequested: _startPlaylistDownload,
+      );
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.video_library,
+                  color: colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Video Information',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_videoInfo!.thumbnail != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      _videoInfo!.thumbnail!,
+                      width: 120,
+                      height: 68,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        width: 120,
+                        height: 68,
+                        color: colorScheme.surfaceContainerHighest,
+                        child: Icon(
+                          Icons.video_library,
+                          color: colorScheme.outline,
+                        ),
+                      ),
+                    ),
+                  ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _videoInfo!.title,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (_videoInfo!.uploader != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          _videoInfo!.uploader!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.outline,
+                          ),
+                        ),
+                      ],
+                      if (_videoInfo!.duration != null) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.access_time,
+                              size: 14,
+                              color: colorScheme.outline,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _formatDuration(
+                                _videoInfo!.duration!,
+                              ),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.outline,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (_videoInfo!.formats.isNotEmpty)
+              DropdownButtonFormField<String>(
+                value: _selectedFormatId,
+                decoration: const InputDecoration(
+                  labelText: 'Select Format',
+                  border: OutlineInputBorder(),
+                ),
+                items: _videoInfo!.formats.map((format) {
+                  String label = '';
+                  if (format.resolution != '0x0') {
+                    label += '${format.resolution} ';
+                  }
+                  label += '${format.ext} ';
+                  if (format.vcodec != null && format.vcodec != 'none') {
+                    label += '(${format.vcodec}) ';
+                  }
+                  if (format.acodec != null && format.acodec != 'none') {
+                    label += '(${format.acodec}) ';
+                  }
+                  if (format.filesize != null) {
+                    label +=
+                        ' - ${(format.filesize! / (1024 * 1024)).toStringAsFixed(2)} MB';
+                  }
+                  return DropdownMenuItem(
+                    value: format.formatId,
+                    child: Text(label.trim()),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedFormatId = value;
+                  });
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSupportedPlatformsSection(
+      ThemeData theme, ColorScheme colorScheme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Supported Platforms',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 120,
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: _supportedPlatforms.length,
+            onPageChanged: (index) {
+              setState(() {
+                _currentPlatform = index;
+              });
+            },
+            itemBuilder: (context, index) {
+              final platform = _supportedPlatforms[index];
+              return AnimatedBuilder(
+                animation: _bannerController,
+                builder: (context, child) {
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      gradient: platform['gradient'],
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (platform['color'] as Color).withAlpha(
+                            77,
+                          ), // 0.3 opacity
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            platform['icon'],
+                            size: 32,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            platform['name'],
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(
+            _supportedPlatforms.length,
+            (index) => Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _currentPlatform == index
+                    ? colorScheme.primary
+                    : colorScheme.outline.withAlpha(77), // 0.3 opacity
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
