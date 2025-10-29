@@ -1086,13 +1086,25 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage>
 
         itemBuilder: (context, index) {
 
-          return _buildDownloadCard(
+          final download = downloads[index];
 
-            context,
+          return Consumer(
 
-            downloads[index],
+            builder: (context, ref, child) {
 
-            isActive: isActive,
+              return _buildDownloadCard(
+
+                context,
+
+                download,
+
+                ref,
+
+                isActive: isActive,
+
+              );
+
+            },
 
           );
 
@@ -1112,7 +1124,9 @@ class _DownloadsPageState extends ConsumerState<DownloadsPage>
 
       BuildContext context,
 
-      DownloadItem download, {
+      DownloadItem download,
+
+      WidgetRef ref, {
 
       required bool isActive,
 
