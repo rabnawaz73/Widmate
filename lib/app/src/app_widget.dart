@@ -14,7 +14,6 @@ import 'package:widmate/features/downloads/presentation/controllers/download_con
 import 'package:widmate/features/downloads/domain/models/download_item.dart';
 import 'package:widmate/app/src/providers/app_providers.dart';
 import 'package:widmate/app/src/services/event_bus.dart';
-import 'package:widmate/app/src/services/event_bus.dart';
 
 final refreshProvider = StateProvider<int>((ref) => 0);
 
@@ -76,47 +75,23 @@ class App extends ConsumerWidget {
       });
     });
 
-    return Consumer(builder: (context, ref, _) {
-      final currentThemeMode = ref.watch(themeModeProvider);
-      final accentColor = ref.watch(accentColorProvider);
-      return MaterialApp.router(
-        scaffoldMessengerKey: scaffoldMessengerKey,
-        title: 'WidMate',
-        debugShowCheckedModeBanner: false,
-        themeMode: currentThemeMode,
-        locale: locale,
-        supportedLocales: AppLocalizations.supportedLocales,
+    return MaterialApp.router(
+      scaffoldMessengerKey: scaffoldMessengerKey,
+      title: 'WidMate',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.dark, // Default to dark theme
+      locale: locale,
+      supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      theme: AppTheme.createTheme(accentColor, Brightness.light).copyWith(
-        pageTransitionsTheme: const PageTransitionsTheme(
-          builders: {
-            TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-            TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
-            TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
-            TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
-          },
-        ),
-      ),
-      darkTheme: AppTheme.createTheme(accentColor, Brightness.dark).copyWith(
-        pageTransitionsTheme: const PageTransitionsTheme(
-          builders: {
-            TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-            TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
-            TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
-            TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
-          },
-        ),
-      ),
       routerConfig: router,
     );
-    });
   }
 }
 

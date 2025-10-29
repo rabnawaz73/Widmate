@@ -2,17 +2,19 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:widmate/app/src/services/event_bus.dart';
 import 'package:widmate/features/downloads/domain/models/download_item.dart';
+import 'package:widmate/features/downloads/presentation/controllers/download_controller.dart';
 
 final notificationServiceProvider = Provider<NotificationService>((ref) {
   final bus = ref.watch(eventBusProvider);
-  return NotificationService(bus);
+  return NotificationService(bus, ref.container);
 });
 
 class NotificationService {
   final EventBus eventBus;
+  final ProviderContainer container;
   final _notifications = FlutterLocalNotificationsPlugin();
 
-  NotificationService(this.eventBus) {
+  NotificationService(this.eventBus, this.container) {
     _initialize();
   }
 
@@ -30,7 +32,14 @@ class NotificationService {
 
   void _handleNotificationTap(NotificationResponse response) {
     if (response.payload != null) {
-      eventBus.emit(NotificationClickEvent(response.payload!));
+      final downloadId = response.payload!;
+      if (response.actionId == 'pause') {
+        container.read(downloadControllerProvider.notifier).pauseDownload(downloadId);
+      } else if (response.actionId == 'cancel') {
+        container.read(downloadControllerProvider.notifier).cancelDownload(downloadId);
+      } else {
+        eventBus.emit(NotificationClickEvent(downloadId));
+      }
     }
   }
 
@@ -115,6 +124,10 @@ class NotificationService {
       progress: (download.progress * 100).round(),
       ongoing: true,
       autoCancel: false,
+      actions: [
+        const AndroidNotificationAction('pause', 'Pause'),
+        const AndroidNotificationAction('cancel', 'Cancel'),
+      ],
     );
 
     const iosDetails = DarwinNotificationDetails();
@@ -126,7 +139,7 @@ class NotificationService {
 
     await _notifications.show(
       download.id.hashCode,
-      'Downloading ${download.title}',
+      download.title,
       '${(download.progress * 100).round()}% - ${download.formattedSpeed} - ${download.formattedEta} remaining',
       notificationDetails,
       payload: download.id,
