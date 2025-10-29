@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:widmate/features/media/domain/models/media_player_state.dart';
 import 'package:widmate/features/media/domain/providers/media_player_provider.dart';
 import 'package:widmate/features/media/presentation/widgets/media_player_widget.dart';
@@ -184,11 +185,21 @@ class _MediaLibraryPageState extends ConsumerState<MediaLibraryPage> {
           ),
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Text(
-              mediaFile.title ?? mediaFile.name,
-              style: Theme.of(context).textTheme.titleSmall,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    mediaFile.title ?? mediaFile.name,
+                    style: Theme.of(context).textTheme.titleSmall,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.share),
+                  onPressed: () => _shareMedia(mediaFile),
+                ),
+              ],
             ),
           ),
         ],
@@ -207,7 +218,10 @@ class _MediaLibraryPageState extends ConsumerState<MediaLibraryPage> {
           overflow: TextOverflow.ellipsis,
         ),
         subtitle: Text(mediaFile.formattedDuration),
-        trailing: const Icon(Icons.play_arrow),
+        trailing: IconButton(
+          icon: const Icon(Icons.share),
+          onPressed: () => _shareMedia(mediaFile),
+        ),
         onTap: () => _playMedia(mediaFile),
       ),
     );
@@ -254,6 +268,10 @@ class _MediaLibraryPageState extends ConsumerState<MediaLibraryPage> {
         ),
       ),
     );
+  }
+
+  void _shareMedia(MediaFile mediaFile) {
+    Share.shareXFiles([XFile(mediaFile.path)], text: mediaFile.title);
   }
 }
 
