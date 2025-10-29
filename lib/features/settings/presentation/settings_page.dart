@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:widmate/app/src/services/settings_service.dart';
 import 'package:widmate/core/constants/app_constants.dart';
+import 'package:widmate/features/settings/presentation/providers/theme_provider.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -72,6 +73,37 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   }
                 },
                 child: const Text('Save'),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Theme',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<ThemeMode>(
+                value: ref.watch(themeProvider),
+                onChanged: (ThemeMode? newValue) {
+                  if (newValue != null) {
+                    ref.read(themeProvider.notifier).setThemeMode(newValue);
+                  }
+                },
+                items: const [
+                  DropdownMenuItem(
+                    value: ThemeMode.light,
+                    child: Text('Light'),
+                  ),
+                  DropdownMenuItem(
+                    value: ThemeMode.dark,
+                    child: Text('Dark'),
+                  ),
+                  DropdownMenuItem(
+                    value: ThemeMode.system,
+                    child: Text('System'),
+                  ),
+                ],
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                ),
               ),
             ],
           ),

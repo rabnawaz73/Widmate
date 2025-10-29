@@ -14,6 +14,7 @@ import 'package:widmate/features/downloads/presentation/controllers/download_con
 import 'package:widmate/features/downloads/domain/models/download_item.dart';
 import 'package:widmate/app/src/providers/app_providers.dart';
 import 'package:widmate/app/src/services/event_bus.dart';
+import 'package:widmate/features/settings/presentation/providers/theme_provider.dart';
 
 final refreshProvider = StateProvider<int>((ref) => 0);
 
@@ -60,6 +61,7 @@ class App extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    final themeMode = ref.watch(themeProvider);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(clipboardOverlayManagerProvider(context));
@@ -81,7 +83,7 @@ class App extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.dark, // Default to dark theme
+      themeMode: themeMode,
       locale: locale,
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const [

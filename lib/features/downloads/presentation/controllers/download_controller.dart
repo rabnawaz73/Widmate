@@ -440,9 +440,10 @@ class DownloadController extends Notifier<AsyncValue<List<DownloadItem>>> {
           state = AsyncValue.data(updatedDownloads);
         }
       });
-    } else {
-      state = AsyncValue.error(error, StackTrace.current);
     }
+    // For generic errors, we don't want to wipe out the whole UI,
+    // so we just show the error and keep the last good state.
+    // The error is already logged at this point.
   }
 }
 

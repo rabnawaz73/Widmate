@@ -58,6 +58,7 @@ dependencies:
   # Media Player
   video_player: ^2.8.2
   just_audio: ^0.9.36
+  chewie: ^1.7.5
   audio_service: ^0.18.12
   audio_session: ^0.1.16
   file_picker: ^10.3.3

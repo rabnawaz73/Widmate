@@ -644,38 +644,7 @@ class _HomePageState extends ConsumerState<HomePage>
                       ),
                       const SizedBox(height: 20),
                       if (_videoInfo!.formats.isNotEmpty)
-                        DropdownButtonFormField<String>(
-                          initialValue: _selectedFormatId,
-                          decoration: const InputDecoration(
-                            labelText: 'Select Format',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: _videoInfo!.formats.map((format) {
-                            String label = '';
-                            if (format.resolution != '0x0') {
-                              label += '${format.resolution} ';
-                            }
-                            label += '${format.ext} ';
-                            if (format.vcodec != null && format.vcodec != 'none') {
-                              label += '(${format.vcodec}) ';
-                            }
-                            if (format.acodec != null && format.acodec != 'none') {
-                              label += '(${format.acodec}) ';
-                            }
-                            if (format.filesize != null) {
-                              label += ' - ${(format.filesize! / (1024 * 1024)).toStringAsFixed(2)} MB';
-                            }
-                            return DropdownMenuItem(
-                              value: format.formatId,
-                              child: Text(label.trim()),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedFormatId = value;
-                            });
-                          },
-                        ),
+                        _buildFormatSelectionCard(theme, colorScheme),
                     ],
 
                     // Playlist Selection for Tablet
@@ -854,38 +823,7 @@ class _HomePageState extends ConsumerState<HomePage>
                                   if (_videoInfo != null &&
                                       !_videoInfo!.isPlaylist &&
                                       _videoInfo!.formats.isNotEmpty) ...[
-                                    DropdownButtonFormField<String>(
-                                      initialValue: _selectedFormatId,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Select Format',
-                                        border: OutlineInputBorder(),
-                                      ),
-                                      items: _videoInfo!.formats.map((format) {
-                                        String label = '';
-                                        if (format.resolution != '0x0') {
-                                          label += '${format.resolution} ';
-                                        }
-                                        label += '${format.ext} ';
-                                        if (format.vcodec != null && format.vcodec != 'none') {
-                                          label += '(${format.vcodec}) ';
-                                        }
-                                        if (format.acodec != null && format.acodec != 'none') {
-                                          label += '(${format.acodec}) ';
-                                        }
-                                        if (format.filesize != null) {
-                                          label += ' - ${(format.filesize! / (1024 * 1024)).toStringAsFixed(2)} MB';
-                                        }
-                                        return DropdownMenuItem(
-                                          value: format.formatId,
-                                          child: Text(label.trim()),
-                                        );
-                                      }).toList(),
-                                      onChanged: (value) {
-                                        setState(() {
-                                          _selectedFormatId = value;
-                                        });
-                                      },
-                                    ),
+                                    _buildFormatSelectionCard(theme, colorScheme),
                                     const SizedBox(height: 20),
                                   ],
                                   Row(
@@ -1346,39 +1284,7 @@ class _HomePageState extends ConsumerState<HomePage>
             ),
             const SizedBox(height: 16),
             if (_videoInfo!.formats.isNotEmpty)
-              DropdownButtonFormField<String>(
-                value: _selectedFormatId,
-                decoration: const InputDecoration(
-                  labelText: 'Select Format',
-                  border: OutlineInputBorder(),
-                ),
-                items: _videoInfo!.formats.map((format) {
-                  String label = '';
-                  if (format.resolution != '0x0') {
-                    label += '${format.resolution} ';
-                  }
-                  label += '${format.ext} ';
-                  if (format.vcodec != null && format.vcodec != 'none') {
-                    label += '(${format.vcodec}) ';
-                  }
-                  if (format.acodec != null && format.acodec != 'none') {
-                    label += '(${format.acodec}) ';
-                  }
-                  if (format.filesize != null) {
-                    label +=
-                        ' - ${(format.filesize! / (1024 * 1024)).toStringAsFixed(2)} MB';
-                  }
-                  return DropdownMenuItem(
-                    value: format.formatId,
-                    child: Text(label.trim()),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedFormatId = value;
-                  });
-                },
-              ),
+              _buildFormatSelectionCard(theme, colorScheme),
           ],
         ),
       ),
@@ -1472,6 +1378,77 @@ class _HomePageState extends ConsumerState<HomePage>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFormatSelectionCard(ThemeData theme, ColorScheme colorScheme) {
+    final videoFormats = _videoInfo!.formats
+        .where((f) => f.vcodec != null && f.vcodec != 'none')
+        .toList();
+    final audioFormats = _videoInfo!.formats
+        .where((f) => f.acodec != null && f.acodec != 'none' && (f.vcodec == null || f.vcodec == 'none'))
+        .toList();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Download Options',
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            if (videoFormats.isNotEmpty) ...[
+              Text(
+                'Video',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              ...videoFormats.map((format) => RadioListTile<String>(
+                    title: Text(
+                        '${format.resolution} - ${format.ext.toUpperCase()}'),
+                    subtitle: Text(
+                        '${(format.filesize ?? 0 / (1024 * 1024)).toStringAsFixed(2)} MB'),
+                    value: format.formatId,
+                    groupValue: _selectedFormatId,
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedFormatId = value;
+                        _audioOnly = false;
+                      });
+                    },
+                  )),
+            ],
+            if (audioFormats.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Audio Only',
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              ...audioFormats.map((format) => RadioListTile<String>(
+                    title: Text(
+                        '${format.audioBitrate}kbps - ${format.ext.toUpperCase()}'),
+                    subtitle: Text(
+                        '${(format.filesize ?? 0 / (1024 * 1024)).toStringAsFixed(2)} MB'),
+                    value: format.formatId,
+                    groupValue: _selectedFormatId,
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedFormatId = value;
+                        _audioOnly = true;
+                      });
+                    },
+                  )),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
