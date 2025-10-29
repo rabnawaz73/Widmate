@@ -21,8 +21,6 @@ class PlaylistSelectionWidget extends StatefulWidget {
 class _PlaylistSelectionWidgetState extends State<PlaylistSelectionWidget> {
   final Set<int> _selectedIndices = <int>{};
   bool _selectAll = false;
-  String _rangeText = '';
-  bool _isRangeMode = false;
 
   @override
   void initState() {
@@ -68,68 +66,6 @@ class _PlaylistSelectionWidgetState extends State<PlaylistSelectionWidget> {
       }
       widget.onSelectionChanged(_selectedIndices.toList());
     });
-  }
-
-  void _selectRange() {
-    if (_rangeText.isEmpty) return;
-
-    try {
-      final parts = _rangeText.split('-');
-      if (parts.length == 2) {
-        final start =
-            int.parse(parts[0].trim()) - 1; // Convert to 0-based index
-        final end = int.parse(parts[1].trim()) - 1;
-
-        if (start >= 0 &&
-            end < widget.playlistInfo.playlistEntries.length &&
-            start <= end) {
-          setState(() {
-            _selectedIndices.clear();
-            for (int i = start; i <= end; i++) {
-              _selectedIndices.add(i);
-            }
-            _selectAll = _selectedIndices.length ==
-                widget.playlistInfo.playlistEntries.length;
-            widget.onSelectionChanged(_selectedIndices.toList());
-          });
-        }
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Invalid range format. Use "1-10" or "1,3,5"'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _selectSpecific() {
-    if (_rangeText.isEmpty) return;
-
-    try {
-      final parts = _rangeText.split(',');
-      setState(() {
-        _selectedIndices.clear();
-        for (final part in parts) {
-          final index = int.parse(part.trim()) - 1; // Convert to 0-based index
-          if (index >= 0 &&
-              index < widget.playlistInfo.playlistEntries.length) {
-            _selectedIndices.add(index);
-          }
-        }
-        _selectAll = _selectedIndices.length ==
-            widget.playlistInfo.playlistEntries.length;
-        widget.onSelectionChanged(_selectedIndices.toList());
-      });
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Invalid format. Use "1,3,5" or "1-10"'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
   }
 
   String _formatDuration(int? seconds) {
@@ -216,61 +152,13 @@ class _PlaylistSelectionWidgetState extends State<PlaylistSelectionWidget> {
             const SizedBox(height: 16),
 
             // Selection controls
-            Row(
-              children: [
-                Expanded(
-                  child: CheckboxListTile(
-                    title: const Text('Select All'),
-                    value: _selectAll,
-                    onChanged: (_) => _toggleSelectAll(),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _isRangeMode = !_isRangeMode;
-                        _rangeText = '';
-                      });
-                    },
-                    icon: Icon(_isRangeMode ? Icons.checklist : Icons.edit),
-                    label: Text(_isRangeMode ? 'Done' : 'Custom'),
-                  ),
-                ),
-              ],
+            CheckboxListTile(
+              title: const Text('Select All'),
+              value: _selectAll,
+              onChanged: (_) => _toggleSelectAll(),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
             ),
-
-            // Custom selection input
-            if (_isRangeMode) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      decoration: const InputDecoration(
-                        hintText: 'Enter range (1-10) or items (1,3,5)',
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                      ),
-                      onChanged: (value) => _rangeText = value,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: _rangeText.contains('-')
-                        ? _selectRange
-                        : _selectSpecific,
-                    child: const Text('Apply'),
-                  ),
-                ],
-              ),
-            ],
 
             const SizedBox(height: 16),
 
@@ -383,39 +271,24 @@ class _PlaylistSelectionWidgetState extends State<PlaylistSelectionWidget> {
             const SizedBox(height: 16),
 
             // Download buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _selectedIndices.isEmpty
-                        ? null
-                        : () {
-                            final playlistItems = _getPlaylistItemsString();
-                            widget.onDownloadRequested(playlistItems);
-                          },
-                    icon: const Icon(Icons.download),
-                    label: Text(
-                      'Download Selected (${_selectedIndices.length})',
-                    ),
-                  ),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _selectedIndices.isEmpty
+                    ? null
+                    : () {
+                        final playlistItems = _getPlaylistItemsString();
+                        widget.onDownloadRequested(playlistItems);
+                      },
+                icon: const Icon(Icons.download),
+                label: Text(
+                  'Download (${_selectedIndices.length})',
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      widget.onDownloadRequested(
-                        '',
-                      ); // Empty string means download all
-                    },
-                    icon: const Icon(Icons.download_for_offline),
-                    label: const Text('Download All'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: colorScheme.primary,
-                      foregroundColor: colorScheme.onPrimary,
-                    ),
-                  ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
                 ),
-              ],
+              ),
             ),
           ],
         ),

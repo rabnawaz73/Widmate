@@ -196,14 +196,16 @@ class _HomePageState extends ConsumerState<HomePage>
             );
 
         if (videoInfo.isPlaylist) {
-          // For playlists, we'll download all items by default in batch mode
-          final allItems = List.generate(videoInfo.playlistCount ?? 0, (i) => i + 1).join(',');
-          _startPlaylistDownload(allItems);
-          downloadCount += videoInfo.playlistCount ?? 0;
-        } else {
-          _startDownload(url: url);
-          downloadCount++;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Playlists are not supported in batch mode and will be skipped.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          continue; // Skip playlists
         }
+        _startDownload(url: url);
+        downloadCount++;
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1108,7 +1110,7 @@ class _HomePageState extends ConsumerState<HomePage>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Enter Video URL',
+              'Enter Video URL(s)',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -1117,7 +1119,7 @@ class _HomePageState extends ConsumerState<HomePage>
             TextField(
               controller: _urlController,
               decoration: InputDecoration(
-                hintText: 'Paste one or more video URLs here...',
+                hintText: 'Paste one or more video URLs, one per line...',
                 prefixIcon: const Icon(Icons.link),
                 suffixIcon: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1211,6 +1213,8 @@ class _HomePageState extends ConsumerState<HomePage>
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            _buildPresetDropdown(),
             const SizedBox(height: 12),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1379,6 +1383,39 @@ class _HomePageState extends ConsumerState<HomePage>
         ),
       ],
     );
+  }
+
+  Widget _buildPresetDropdown() {
+    final presets = ref.watch(downloadPresetProvider);
+    return DropdownButtonFormField<DownloadPreset>(
+      value: _selectedPreset,
+      onChanged: (DownloadPreset? newValue) {
+        setState(() {
+          _selectedPreset = newValue;
+          _applyPreset(newValue);
+        });
+      },
+      items: presets.map((preset) {
+        return DropdownMenuItem(
+          value: preset,
+          child: Text(preset.name),
+        );
+      }).toList(),
+      decoration: const InputDecoration(
+        labelText: 'Select Preset',
+        border: OutlineInputBorder(),
+      ),
+    );
+  }
+
+  void _applyPreset(DownloadPreset? preset) {
+    if (preset == null) {
+      return;
+    }
+    setState(() {
+      _selectedQuality = preset.quality;
+      _audioOnly = preset.audioOnly;
+    });
   }
 
   Widget _buildFormatSelectionCard(ThemeData theme, ColorScheme colorScheme) {
