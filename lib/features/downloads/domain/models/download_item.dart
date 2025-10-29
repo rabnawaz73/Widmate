@@ -36,6 +36,7 @@ class DownloadItem {
   final DateTime createdAt;
   final DateTime? completedAt;
   final String? error;
+  final String? errorMessage;
   
   // Helper methods for formatting values
   String getFormattedFileSize() {
@@ -78,6 +79,7 @@ class DownloadItem {
     required this.createdAt,
     this.completedAt,
     this.error,
+    this.errorMessage,
     required this.url,
   });
 
@@ -121,6 +123,7 @@ class DownloadItem {
       createdAt: backendStatus.createdAt,
       completedAt: backendStatus.updatedAt, // Using updatedAt as completedAt for simplicity
       error: backendStatus.error,
+      errorMessage: backendStatus.error,
     );
   }
 
@@ -140,6 +143,7 @@ class DownloadItem {
     DateTime? createdAt,
     ValueGetter<DateTime?>? completedAt,
     ValueGetter<String?>? error,
+    ValueGetter<String?>? errorMessage,
   }) {
     return DownloadItem(
       id: id ?? this.id,
@@ -158,6 +162,7 @@ class DownloadItem {
       createdAt: createdAt ?? this.createdAt,
       completedAt: completedAt != null ? completedAt() : this.completedAt,
       error: error != null ? error() : this.error,
+      errorMessage: errorMessage != null ? errorMessage() : this.errorMessage,
     );
   }
 
@@ -179,6 +184,7 @@ class DownloadItem {
       'createdAt': createdAt.toIso8601String(),
       'completedAt': completedAt?.toIso8601String(),
       'error': error,
+      'errorMessage': errorMessage,
     };
   }
 
@@ -206,6 +212,7 @@ class DownloadItem {
       createdAt: DateTime.parse(json['createdAt']),
       completedAt: json['completedAt'] != null ? DateTime.parse(json['completedAt']) : null,
       error: json['error'],
+      errorMessage: json['errorMessage'],
     );
   }
 

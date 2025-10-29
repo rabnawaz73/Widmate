@@ -25,6 +25,12 @@ class NotificationClickEvent extends AppEvent {
   NotificationClickEvent(this.payload);
 }
 
+class ShowErrorEvent extends AppEvent {
+  final String message;
+
+  ShowErrorEvent(this.message);
+}
+
 final eventBusProvider = Provider<EventBus>((ref) {
   final eventBus = EventBus();
   ref.onDispose(() => eventBus.dispose());

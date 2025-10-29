@@ -28,30 +28,24 @@ final downloadControllerProvider =
 
 // Provider for download stats
 final downloadStatsProvider = Provider<DownloadStats>((ref) {
-  final downloadState = ref.watch(downloadControllerProvider);
+  final downloads = ref.watch(downloadControllerProvider.select((state) => state.valueOrNull ?? []));
 
-  return downloadState.when(
-    data: (downloads) {
-      final active =
-          downloads.where((d) => d.status == DownloadStatus.downloading).length;
-      final queued =
-          downloads.where((d) => d.status == DownloadStatus.queued).length;
-      final completed =
-          downloads.where((d) => d.status == DownloadStatus.completed).length;
-      final failed =
-          downloads.where((d) => d.status == DownloadStatus.failed).length;
-      final total = downloads.length;
+  final active =
+      downloads.where((d) => d.status == DownloadStatus.downloading).length;
+  final queued =
+      downloads.where((d) => d.status == DownloadStatus.queued).length;
+  final completed =
+      downloads.where((d) => d.status == DownloadStatus.completed).length;
+  final failed =
+      downloads.where((d) => d.status == DownloadStatus.failed).length;
+  final total = downloads.length;
 
-      return DownloadStats(
-        active: active,
-        queued: queued,
-        completed: completed,
-        failed: failed,
-        total: total,
-      );
-    },
-    loading: () => const DownloadStats(),
-    error: (_, __) => const DownloadStats(),
+  return DownloadStats(
+    active: active,
+    queued: queued,
+    completed: completed,
+    failed: failed,
+    total: total,
   );
 });
 
@@ -140,7 +134,7 @@ class DownloadController extends Notifier<AsyncValue<List<DownloadItem>>> {
     } catch (e, stack) {
       final appError = ErrorFactory.fromException(e, stack);
       appError.log();
-      state = AsyncValue.error(appError, stack);
+      _handleError(appError, downloadId: downloadId);
     }
   }
 
@@ -211,7 +205,7 @@ class DownloadController extends Notifier<AsyncValue<List<DownloadItem>>> {
     } catch (e, stack) {
       final appError = ErrorFactory.fromException(e, stack);
       appError.log();
-      state = AsyncValue.error(appError, stack);
+      _handleError(appError, downloadId: downloadId);
     }
   }
 
@@ -227,7 +221,7 @@ class DownloadController extends Notifier<AsyncValue<List<DownloadItem>>> {
     } catch (e, stack) {
       final appError = ErrorFactory.fromException(e, stack);
       appError.log();
-      state = AsyncValue.error(appError, stack);
+      _handleError(appError, downloadId: downloadId);
     }
   }
 
@@ -291,7 +285,7 @@ class DownloadController extends Notifier<AsyncValue<List<DownloadItem>>> {
     } catch (e, stack) {
       final appError = ErrorFactory.fromException(e, stack);
       appError.log();
-      state = AsyncValue.error(appError, stack);
+      _handleError(appError, downloadId: downloadId);
     }
   }
 
@@ -360,7 +354,7 @@ class DownloadController extends Notifier<AsyncValue<List<DownloadItem>>> {
     } catch (e, stack) {
       final appError = ErrorFactory.fromException(e, stack);
       appError.log();
-      state = AsyncValue.error(appError, stack);
+      _handleError(appError, downloadId: downloadId);
     }
   }
 
@@ -373,7 +367,7 @@ class DownloadController extends Notifier<AsyncValue<List<DownloadItem>>> {
     } catch (e, stack) {
       final appError = ErrorFactory.fromException(e, stack);
       appError.log();
-      state = AsyncValue.error(appError, stack);
+      _handleError(appError, downloadId: downloadId);
     }
   }
 
@@ -389,7 +383,7 @@ class DownloadController extends Notifier<AsyncValue<List<DownloadItem>>> {
     } catch (e, stack) {
       final appError = ErrorFactory.fromException(e, stack);
       appError.log();
-      state = AsyncValue.error(appError, stack);
+      _handleError(appError, downloadId: downloadId);
     }
   }
 
@@ -409,7 +403,24 @@ class DownloadController extends Notifier<AsyncValue<List<DownloadItem>>> {
     }
   }
 
-
+  void _handleError(AppError error, {String? downloadId}) {
+    _notificationService.showError(error.message);
+    if (downloadId != null) {
+      state.whenData((downloads) {
+        final index = downloads.indexWhere((d) => d.id == downloadId);
+        if (index != -1) {
+          final updatedDownloads = List.of(downloads);
+          updatedDownloads[index] = updatedDownloads[index].copyWith(
+            status: DownloadStatus.failed,
+            errorMessage: () => error.message,
+          );
+          state = AsyncValue.data(updatedDownloads);
+        }
+      });
+    } else {
+      state = AsyncValue.error(error, StackTrace.current);
+    }
+  }
 }
 
 // Download stats class

@@ -1,16 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:widmate/features/home/presentation/pages/home_page.dart';
-import 'package:widmate/features/downloads/presentation/pages/downloads_page.dart';
-
-
-import 'package:widmate/features/about/presentation/pages/about_page.dart';
+import 'package:go_router/go_router.dart';
+import 'package:widmate/app/src/router.dart';
 import 'package:widmate/features/clipboard/presentation/managers/clipboard_overlay_manager.dart';
-import 'package:widmate/features/search/presentation/pages/search_page.dart';
 import 'package:widmate/features/search/presentation/widgets/search_bar_widget.dart';
-import 'package:widmate/features/media/presentation/pages/media_library_page.dart';
-import 'package:widmate/features/settings/presentation/pages/settings_page.dart';
 import 'package:widmate/app/src/theme.dart';
 import 'package:widmate/app/src/localization/app_localizations.dart';
 import 'package:widmate/core/widgets/app_icon_widget.dart';
@@ -19,18 +13,12 @@ import 'package:widmate/core/providers/video_download_provider.dart';
 import 'package:widmate/features/downloads/presentation/controllers/download_controller.dart';
 import 'package:widmate/features/downloads/domain/models/download_item.dart';
 import 'package:widmate/app/src/providers/app_providers.dart';
+import 'package:widmate/app/src/services/event_bus.dart';
+import 'package:widmate/app/src/services/event_bus.dart';
 
 final refreshProvider = StateProvider<int>((ref) => 0);
 
-final pageNavigationRequestProvider =
-    StateNotifierProvider<NavigationNotifier, int?>((ref) {
-  return NavigationNotifier();
-});
-
-class NavigationNotifier extends StateNotifier<int?> {
-  NavigationNotifier() : super(null);
-  void setPage(int? page) => state = page;
-}
+final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 // Responsive breakpoints
 class ResponsiveBreakpoints {
@@ -72,23 +60,32 @@ class App extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Initialize clipboard overlay manager
-    // This needs to be done after the app is built to have access to the overlay
+    final router = ref.watch(routerProvider);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(clipboardOverlayManagerProvider(context));
     });
 
-    // Get the current locale from the provider
     final locale = ref.watch(appLocalizationsProvider.select((l) => l.locale));
 
-    final currentThemeMode = ref.watch(themeModeProvider);
-    final accentColor = ref.watch(accentColorProvider);
-    return MaterialApp(
-      title: 'WidMate',
-      debugShowCheckedModeBanner: false,
-      themeMode: currentThemeMode,
-      locale: locale,
-      supportedLocales: AppLocalizations.supportedLocales,
+    ref.listen(eventBusProvider, (previous, next) {
+      next.on<ShowErrorEvent>().listen((event) {
+        scaffoldMessengerKey.currentState?.showSnackBar(
+          SnackBar(content: Text(event.message)),
+        );
+      });
+    });
+
+    return Consumer(builder: (context, ref, _) {
+      final currentThemeMode = ref.watch(themeModeProvider);
+      final accentColor = ref.watch(accentColorProvider);
+      return MaterialApp.router(
+        scaffoldMessengerKey: scaffoldMessengerKey,
+        title: 'WidMate',
+        debugShowCheckedModeBanner: false,
+        themeMode: currentThemeMode,
+        locale: locale,
+        supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -117,13 +114,15 @@ class App extends ConsumerWidget {
           },
         ),
       ),
-      home: const _RootScaffold(),
+      routerConfig: router,
     );
+    });
   }
 }
 
 class _RootScaffold extends ConsumerStatefulWidget {
-  const _RootScaffold();
+  const _RootScaffold({required this.child});
+  final Widget child;
 
   @override
   ConsumerState<_RootScaffold> createState() => _RootScaffoldState();
@@ -131,19 +130,8 @@ class _RootScaffold extends ConsumerStatefulWidget {
 
 class _RootScaffoldState extends ConsumerState<_RootScaffold>
     with TickerProviderStateMixin {
-  int _index = 0;
-  late final PageController _pageController;
   late final AnimationController _fabAnimationController;
   late final Animation<double> _fabAnimation;
-
-  static final _pages = <Widget>[
-    const HomePage(),
-    const SearchPage(),
-    const DownloadsPage(),
-    const MediaLibraryPage(),
-    const SettingsPage(),
-    const AboutPage(),
-  ];
 
   static const _pageTitles = [
     'Home',
@@ -157,7 +145,6 @@ class _RootScaffoldState extends ConsumerState<_RootScaffold>
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
     _fabAnimationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -170,314 +157,64 @@ class _RootScaffoldState extends ConsumerState<_RootScaffold>
 
   @override
   void dispose() {
-    _pageController.dispose();
     _fabAnimationController.dispose();
     super.dispose();
   }
 
-  void _onDestinationSelected(int index) {
-    if (_index != index) {
-      setState(() {
-        _index = index;
-      });
-      _pageController.animateToPage(
-        index,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
+  int _calculateSelectedIndex(BuildContext context) {
+    final GoRouter route = GoRouter.of(context);
+    final String location = route.location;
+    if (location.startsWith('/search')) {
+      return 1;
+    } else if (location.startsWith('/downloads')) {
+      return 2;
+    } else if (location.startsWith('/media')) {
+      return 3;
+    } else if (location.startsWith('/settings')) {
+      return 4;
+    } else if (location.startsWith('/about')) {
+      return 5;
+    } else {
+      return 0;
     }
   }
 
-  Widget _buildTabletLayout(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Scaffold(
-      body: Row(
-        children: [
-          // Side Navigation Rail
-          NavigationRail(
-            selectedIndex: _index,
-            onDestinationSelected: _onDestinationSelected,
-            labelType: NavigationRailLabelType.selected,
-            backgroundColor: colorScheme.surface,
-            destinations: const [
-              NavigationRailDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home),
-                label: Text('Home'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.download_outlined),
-                selectedIcon: Icon(Icons.download),
-                label: Text('Downloads'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings),
-                label: Text('Settings'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.info_outline),
-                selectedIcon: Icon(Icons.info),
-                label: Text('About'),
-              ),
-            ],
-          ),
-          const VerticalDivider(thickness: 1, width: 1),
-          // Main Content
-          Expanded(
-            child: Column(
-              children: [
-                // Compact AppBar
-                Container(
-                  height: 64,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface,
-                    border: Border(
-                      bottom: BorderSide(
-                        color: colorScheme.outline.withAlpha(51), // 0.2 opacity
-                      ),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      // App Logo
-                      AppIconWidget(
-                        size: 32,
-                        color: colorScheme.primary,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'WidMate - ${_pageTitles[_index]}',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Spacer(),
-                      // Search and Menu
-                      if (_index == 0 || _index == 2)
-                        SearchBarWidget(
-                          isExpanded: false,
-                          onToggle: () {
-                            // Navigate to search page
-                            _pageController.animateToPage(
-                              1, // Search page index
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                            );
-                          },
-                        ),
-                      PopupMenuButton<String>(
-                        onSelected: (value) {
-                          switch (value) {
-                            case 'help':
-                              _showHelpDialog();
-                              break;
-                          }
-                        },
-                        // Fix menu width
-                        constraints: const BoxConstraints(minWidth: 180),
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'help',
-                            child: Row(
-                              children: [
-                                Icon(Icons.help_outline),
-                                SizedBox(width: 8),
-                                Text('Help'),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                // Page Content
-                Expanded(
-                  child: PageView(
-                    controller: _pageController,
-                    onPageChanged: (index) {
-                      setState(() {
-                        _index = index;
-                      });
-                    },
-                    children: _pages,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDesktopLayout(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Scaffold(
-      body: Row(
-        children: [
-          // Extended Side Navigation
-          NavigationRail(
-            selectedIndex: _index,
-            onDestinationSelected: _onDestinationSelected,
-            labelType: NavigationRailLabelType.all,
-            backgroundColor: colorScheme.surface,
-            minWidth: 200,
-            destinations: const [
-              NavigationRailDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home),
-                label: Text('Home'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.download_outlined),
-                selectedIcon: Icon(Icons.download),
-                label: Text('Downloads'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings),
-                label: Text('Settings'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.info_outline),
-                selectedIcon: Icon(Icons.info),
-                label: Text('About'),
-              ),
-            ],
-          ),
-          const VerticalDivider(thickness: 1, width: 1),
-          // Main Content Area
-          Expanded(
-            child: Column(
-              children: [
-                // Desktop AppBar
-                Container(
-                  height: 72,
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface,
-                    border: Border(
-                      bottom: BorderSide(
-                        color: colorScheme.outline.withAlpha(51), // 0.2 opacity
-                      ),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      // App Logo and Title
-                      AppIconWidget(
-                        size: 40,
-                        color: colorScheme.primary,
-                      ),
-                      const SizedBox(width: 16),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'WidMate',
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            _pageTitles[_index],
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.onSurface.withAlpha(
-                                179,
-                              ), // 0.7 opacity
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      // Search Bar (for desktop)
-                      if (_index == 0 || _index == 2)
-                        Container(
-                          width: 300,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const TextField(
-                            decoration: InputDecoration(
-                              hintText: 'Search...',
-                              prefixIcon: Icon(Icons.search),
-                              border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                            ),
-                          ),
-                        ),
-                      const SizedBox(width: 16),
-                      // Action Buttons
-                      IconButton(
-                        onPressed: _showHelpDialog,
-                        icon: const Icon(Icons.help_outline),
-                        tooltip: 'Help',
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.content_paste),
-                        label: const Text('Quick Download'),
-                      ),
-                    ],
-                  ),
-                ),
-                // Page Content with padding
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: PageView(
-                      controller: _pageController,
-                      onPageChanged: (index) {
-                        setState(() {
-                          _index = index;
-                        });
-                      },
-                      children: _pages,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  void _onDestinationSelected(int index, BuildContext context) {
+    switch (index) {
+      case 0:
+        context.go('/');
+        break;
+      case 1:
+        context.go('/search');
+        break;
+      case 2:
+        context.go('/downloads');
+        break;
+      case 3:
+        context.go('/media');
+        break;
+      case 4:
+        context.go('/settings');
+        break;
+      case 5:
+        context.go('/about');
+        break;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<int?>(pageNavigationRequestProvider, (previous, next) {
-      if (next != null) {
-        _onDestinationSelected(next);
-        // Reset the provider to allow subsequent navigation requests to the same page
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          ref.read(pageNavigationRequestProvider.notifier).setPage(null);
-        });
-      }
-    });
+    final int selectedIndex = _calculateSelectedIndex(context);
 
     return ResponsiveLayout(
-      mobile: _buildMobileLayout(context),
-      tablet: _buildTabletLayout(context),
-      desktop: _buildDesktopLayout(context),
+      mobile: _buildMobileLayout(context, selectedIndex, widget.child),
+      tablet: _buildTabletLayout(context, selectedIndex, widget.child),
+      desktop: _buildDesktopLayout(context, selectedIndex, widget.child),
     );
   }
 
-  Widget _buildMobileLayout(BuildContext context) {
+  Widget _buildMobileLayout(
+      BuildContext context, int index, Widget child) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -485,14 +222,11 @@ class _RootScaffoldState extends ConsumerState<_RootScaffold>
       appBar: AppBar(
         title: Row(
           children: [
-            // App Logo
             AppIconWidget(
               size: 32,
               color: colorScheme.primary,
             ),
             const SizedBox(width: 12),
-
-            // App Name and Current Page
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -504,7 +238,7 @@ class _RootScaffoldState extends ConsumerState<_RootScaffold>
                   ),
                 ),
                 Text(
-                  _pageTitles[_index],
+                  _pageTitles[index],
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurface.withAlpha(153), // 0.6 opacity
                   ),
@@ -514,17 +248,12 @@ class _RootScaffoldState extends ConsumerState<_RootScaffold>
           ],
         ),
         actions: [
-          // Search Action (visible on Home)
-          if (_index == 0)
+          if (index == 0)
             IconButton(
-              onPressed: () {
-                _onDestinationSelected(1);
-              },
+              onPressed: () => _onDestinationSelected(1, context),
               icon: const Icon(Icons.search),
               tooltip: 'Search',
             ),
-
-          // More Actions Menu
           PopupMenuButton<String>(
             onSelected: (value) {
               switch (value) {
@@ -535,18 +264,10 @@ class _RootScaffoldState extends ConsumerState<_RootScaffold>
                   _showHelpDialog();
                   break;
                 case 'about':
-                  setState(() {
-                    _index = 3;
-                  });
-                  _pageController.animateToPage(
-                    3,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                  );
+                  _onDestinationSelected(5, context);
                   break;
               }
             },
-            // Fix menu width
             constraints: const BoxConstraints(minWidth: 180),
             itemBuilder: (context) => [
               const PopupMenuItem(
@@ -585,18 +306,10 @@ class _RootScaffoldState extends ConsumerState<_RootScaffold>
         elevation: 0,
         scrolledUnderElevation: 1,
       ),
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: (index) {
-          setState(() {
-            _index = index;
-          });
-        },
-        children: _pages,
-      ),
+      body: child,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: _onDestinationSelected,
+        selectedIndex: index,
+        onDestinationSelected: (i) => _onDestinationSelected(i, context),
         animationDuration: const Duration(milliseconds: 300),
         destinations: const [
           NavigationDestination(
@@ -631,7 +344,7 @@ class _RootScaffoldState extends ConsumerState<_RootScaffold>
           ),
         ],
       ),
-      floatingActionButton: _index == 0
+      floatingActionButton: index == 0
           ? ScaleTransition(
               scale: _fabAnimation,
               child: FloatingActionButton.extended(
@@ -641,7 +354,6 @@ class _RootScaffoldState extends ConsumerState<_RootScaffold>
                   final url = clipboardData?.text;
                   if (url != null && Uri.tryParse(url)?.isAbsolute == true) {
                     try {
-                      // Show a loading indicator
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Getting video info...')),
                       );
@@ -675,7 +387,7 @@ class _RootScaffoldState extends ConsumerState<_RootScaffold>
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Download started!')),
                         );
-                        _onDestinationSelected(2); // Navigate to downloads page
+                        _onDestinationSelected(2, context);
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -702,6 +414,237 @@ class _RootScaffoldState extends ConsumerState<_RootScaffold>
             )
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  Widget _buildTabletLayout(
+      BuildContext context, int index, Widget child) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Scaffold(
+      body: Row(
+        children: [
+          NavigationRail(
+            selectedIndex: index,
+            onDestinationSelected: (i) => _onDestinationSelected(i, context),
+            labelType: NavigationRailLabelType.selected,
+            backgroundColor: colorScheme.surface,
+            destinations: const [
+              NavigationRailDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home),
+                label: Text('Home'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.download_outlined),
+                selectedIcon: Icon(Icons.download),
+                label: Text('Downloads'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.settings_outlined),
+                selectedIcon: Icon(Icons.settings),
+                label: Text('Settings'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.info_outline),
+                selectedIcon: Icon(Icons.info),
+                label: Text('About'),
+              ),
+            ],
+          ),
+          const VerticalDivider(thickness: 1, width: 1),
+          Expanded(
+            child: Column(
+              children: [
+                Container(
+                  height: 64,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: colorScheme.outline.withAlpha(51),
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      AppIconWidget(
+                        size: 32,
+                        color: colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'WidMate - ${_pageTitles[index]}',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (index == 0 || index == 2)
+                        SearchBarWidget(
+                          isExpanded: false,
+                          onToggle: () {
+                            _onDestinationSelected(1, context);
+                          },
+                        ),
+                      PopupMenuButton<String>(
+                        onSelected: (value) {
+                          if (value == 'help') {
+                            _showHelpDialog();
+                          }
+                        },
+                        constraints: const BoxConstraints(minWidth: 180),
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'help',
+                            child: Row(
+                              children: [
+                                Icon(Icons.help_outline),
+                                SizedBox(width: 8),
+                                Text('Help'),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(child: child),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopLayout(
+      BuildContext context, int index, Widget child) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Scaffold(
+      body: Row(
+        children: [
+          NavigationRail(
+            selectedIndex: index,
+            onDestinationSelected: (i) => _onDestinationSelected(i, context),
+            labelType: NavigationRailLabelType.all,
+            backgroundColor: colorScheme.surface,
+            minWidth: 200,
+            destinations: const [
+              NavigationRailDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home),
+                label: Text('Home'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.download_outlined),
+                selectedIcon: Icon(Icons.download),
+                label: Text('Downloads'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.settings_outlined),
+                selectedIcon: Icon(Icons.settings),
+                label: Text('Settings'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.info_outline),
+                selectedIcon: Icon(Icons.info),
+                label: Text('About'),
+              ),
+            ],
+          ),
+          const VerticalDivider(thickness: 1, width: 1),
+          Expanded(
+            child: Column(
+              children: [
+                Container(
+                  height: 72,
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: colorScheme.outline.withAlpha(51),
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      AppIconWidget(
+                        size: 40,
+                        color: colorScheme.primary,
+                      ),
+                      const SizedBox(width: 16),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'WidMate',
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            _pageTitles[index],
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurface.withAlpha(179),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      if (index == 0 || index == 2)
+                        Container(
+                          width: 300,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const TextField(
+                            decoration: InputDecoration(
+                              hintText: 'Search...',
+                              prefixIcon: Icon(Icons.search),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(width: 16),
+                      IconButton(
+                        onPressed: _showHelpDialog,
+                        icon: const Icon(Icons.help_outline),
+                        tooltip: 'Help',
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton.icon(
+                        onPressed: () {},
+                        icon: const Icon(Icons.content_paste),
+                        label: const Text('Quick Download'),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: child,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

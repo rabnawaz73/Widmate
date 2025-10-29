@@ -261,4 +261,8 @@ class NotificationService {
   Future<void> cancelMediaPlayerNotification() async {
     await _notifications.cancel(1000);
   }
+
+  void showError(String message) {
+    eventBus.emit(ShowErrorEvent(message));
+  }
 }
