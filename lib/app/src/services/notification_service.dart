@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:widmate/app/src/services/event_bus.dart';
@@ -112,6 +115,7 @@ class NotificationService {
   }
 
   Future<void> updateDownloadProgress(DownloadItem download) async {
+    final thumbnailPath = await _downloadThumbnail(download.thumbnailUrl);
     final androidDetails = AndroidNotificationDetails(
       'download_channel',
       'Downloads',
@@ -119,6 +123,7 @@ class NotificationService {
       importance: Importance.low,
       priority: Priority.low,
       icon: '@mipmap/ic_launcher',
+      largeIcon: thumbnailPath != null ? FilePathAndroidBitmap(thumbnailPath) : null,
       showWhen: false,
       maxProgress: 100,
       progress: (download.progress * 100).round(),
@@ -147,13 +152,15 @@ class NotificationService {
   }
 
   Future<void> showDownloadCompleted(DownloadItem download) async {
-    const androidDetails = AndroidNotificationDetails(
+    final thumbnailPath = await _downloadThumbnail(download.thumbnailUrl);
+    final androidDetails = AndroidNotificationDetails(
       'download_channel',
       'Downloads',
       channelDescription: 'Download notifications',
       importance: Importance.high,
       priority: Priority.high,
       icon: '@mipmap/ic_launcher',
+      largeIcon: thumbnailPath != null ? FilePathAndroidBitmap(thumbnailPath) : null,
       showWhen: true,
     );
 
@@ -273,6 +280,23 @@ class NotificationService {
 
   Future<void> cancelMediaPlayerNotification() async {
     await _notifications.cancel(1000);
+  }
+
+  Future<String?> _downloadThumbnail(String? url) async {
+    if (url == null) return null;
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final directory = await getTemporaryDirectory();
+        final filePath = '${directory.path}/${url.hashCode}.png';
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+        return filePath;
+      }
+    } catch (e) {
+      print('Error downloading thumbnail: $e');
+    }
+    return null;
   }
 
   void showError(String message) {

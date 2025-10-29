@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:chewie/chewie.dart';
 import 'dart:io';
 
 class MediaPlayerPage extends StatefulWidget {
@@ -15,6 +16,7 @@ class MediaPlayerPage extends StatefulWidget {
 
 class _MediaPlayerPageState extends State<MediaPlayerPage> {
   VideoPlayerController? _videoController;
+  ChewieController? _chewieController;
   AudioPlayer? _audioPlayer;
   bool _isAudio = false;
   bool _isPlaying = false;
@@ -41,30 +43,35 @@ class _MediaPlayerPageState extends State<MediaPlayerPage> {
       _audioPlayer = AudioPlayer();
       _audioPlayer!.setFilePath(widget.filePath);
       _audioPlayer!.playerStateStream.listen((playerState) {
-        setState(() {
-          _isPlaying = playerState.playing;
-        });
+        if (mounted) {
+          setState(() {
+            _isPlaying = playerState.playing;
+          });
+        }
       });
       _audioPlayer!.durationStream.listen((duration) {
-        setState(() {
-          _duration = duration ?? Duration.zero;
-        });
+        if (mounted) {
+          setState(() {
+            _duration = duration ?? Duration.zero;
+          });
+        }
       });
       _audioPlayer!.positionStream.listen((position) {
-        setState(() {
-          _position = position;
-        });
+        if (mounted) {
+          setState(() {
+            _position = position;
+          });
+        }
       });
     } else {
       _videoController = VideoPlayerController.file(file);
       await _videoController!.initialize();
-      _videoController!.addListener(() {
-        setState(() {
-          _isPlaying = _videoController!.value.isPlaying;
-          _duration = _videoController!.value.duration;
-          _position = _videoController!.value.position;
-        });
-      });
+      _chewieController = ChewieController(
+        videoPlayerController: _videoController!,
+        autoPlay: true,
+        looping: false,
+        // Additional customization options can be added here
+      );
     }
     setState(() {});
   }
@@ -79,23 +86,16 @@ class _MediaPlayerPageState extends State<MediaPlayerPage> {
   @override
   void dispose() {
     _videoController?.dispose();
+    _chewieController?.dispose();
     _audioPlayer?.dispose();
     super.dispose();
   }
 
   void _togglePlayPause() {
-    if (_isAudio) {
-      if (_isPlaying) {
-        _audioPlayer?.pause();
-      } else {
-        _audioPlayer?.play();
-      }
+    if (_isPlaying) {
+      _audioPlayer?.pause();
     } else {
-      if (_isPlaying) {
-        _videoController?.pause();
-      } else {
-        _videoController?.play();
-      }
+      _audioPlayer?.play();
     }
   }
 
@@ -134,8 +134,8 @@ class _MediaPlayerPageState extends State<MediaPlayerPage> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
-            _buildPlaybackControls(),
-            _buildProgressBar(),
+            _buildAudioPlaybackControls(),
+            _buildAudioProgressBar(),
           ],
         ),
       ),
@@ -143,22 +143,15 @@ class _MediaPlayerPageState extends State<MediaPlayerPage> {
   }
 
   Widget _buildVideoPlayerUI() {
-    if (_videoController == null || !_videoController!.value.isInitialized) {
+    if (_chewieController == null || _videoController == null || !_videoController!.value.isInitialized) {
       return const Center(child: CircularProgressIndicator());
     }
-    return Column(
-      children: [
-        AspectRatio(
-          aspectRatio: _videoController!.value.aspectRatio,
-          child: VideoPlayer(_videoController!),
-        ),
-        _buildPlaybackControls(),
-        _buildProgressBar(),
-      ],
+    return Chewie(
+      controller: _chewieController!,
     );
   }
 
-  Widget _buildPlaybackControls() {
+  Widget _buildAudioPlaybackControls() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -166,11 +159,7 @@ class _MediaPlayerPageState extends State<MediaPlayerPage> {
           icon: const Icon(Icons.replay_10),
           onPressed: () {
             final newPosition = _position - const Duration(seconds: 10);
-            if (_isAudio) {
-              _audioPlayer?.seek(newPosition);
-            } else {
-              _videoController?.seekTo(newPosition);
-            }
+            _audioPlayer?.seek(newPosition);
           },
         ),
         IconButton(
@@ -182,18 +171,14 @@ class _MediaPlayerPageState extends State<MediaPlayerPage> {
           icon: const Icon(Icons.forward_10),
           onPressed: () {
             final newPosition = _position + const Duration(seconds: 10);
-            if (_isAudio) {
-              _audioPlayer?.seek(newPosition);
-            } else {
-              _videoController?.seekTo(newPosition);
-            }
+            _audioPlayer?.seek(newPosition);
           },
         ),
       ],
     );
   }
 
-  Widget _buildProgressBar() {
+  Widget _buildAudioProgressBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Row(
@@ -206,11 +191,7 @@ class _MediaPlayerPageState extends State<MediaPlayerPage> {
               value: _position.inMilliseconds.toDouble(),
               onChanged: (value) {
                 final newPosition = Duration(milliseconds: value.toInt());
-                if (_isAudio) {
-                  _audioPlayer?.seek(newPosition);
-                } else {
-                  _videoController?.seekTo(newPosition);
-                }
+                _audioPlayer?.seek(newPosition);
               },
             ),
           ),
