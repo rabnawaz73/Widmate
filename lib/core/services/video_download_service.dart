@@ -8,14 +8,16 @@ import 'package:widmate/core/errors/app_errors.dart';
 import 'package:widmate/core/services/logger_service.dart';
 import 'package:widmate/core/utils/validation_utils.dart';
 import 'package:widmate/core/models/download_models.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:web_socket_channel/status.dart' as ws_status;
 
 /// Service class for communicating with the WidMate backend API
 class VideoDownloadService {
-  static final String _baseUrl = AppConstants.baseUrl;
   static const Duration _timeout = AppConstants.apiTimeout;
 
   final http.Client _client = http.Client();
   final _downloadEventsController = StreamController<DownloadEvent>.broadcast();
+  WebSocketChannel? _wsChannel;
 
   /// Get video information and metadata
   Future<VideoInfo> getVideoInfo(
@@ -31,10 +33,12 @@ class VideoDownloadService {
 
       Logger.info('Getting video info for: $url');
 
+      final headers = {'Content-Type': 'application/json'};
+      if (AppConstants.apiKey.isNotEmpty) headers['X-API-Key'] = AppConstants.apiKey;
       final response = await _client
           .post(
-            Uri.parse('$_baseUrl/info'),
-            headers: {'Content-Type': 'application/json'},
+            Uri.parse('${AppConstants.baseUrl}/info'),
+            headers: headers,
             body: json.encode({'url': url, 'playlist_info': playlistInfo}),
           )
           .timeout(_timeout);
@@ -63,6 +67,55 @@ class VideoDownloadService {
     }
   }
 
+  VideoDownloadService() {
+    _connectWebSocket();
+  }
+
+  void _connectWebSocket() {
+    try {
+      final uri = Uri.parse(AppConstants.baseUrl);
+      final scheme = uri.scheme == 'https' ? 'wss' : 'ws';
+      final wsUri = Uri(
+        scheme: scheme,
+        userInfo: uri.userInfo,
+        host: uri.host,
+        port: uri.port,
+        path: '/ws',
+      );
+      _wsChannel = WebSocketChannel.connect(wsUri);
+      _wsChannel!.stream.listen((message) {
+        try {
+          final data = json.decode(message is String ? message : utf8.decode(message));
+          final id = data['id'] as String?;
+          final status = data['status'] as String?;
+          final progress = (data['progress'] is num) ? (data['progress'] as num).toDouble() : 0.0;
+          final downloadedBytes = (data['downloaded_bytes'] is num) ? (data['downloaded_bytes'] as num).toInt() : 0;
+          final totalBytes = (data['total_bytes'] is num) ? (data['total_bytes'] as num).toInt() : 0;
+          if (id == null) return;
+          if (status == 'downloading') {
+            _downloadEventsController.add(
+              DownloadProgressEvent(id, progress, downloadedBytes, totalBytes),
+            );
+          } else if (status == 'completed') {
+            final filename = data['filename'] as String? ?? '';
+            _downloadEventsController.add(
+              DownloadCompletedEvent(filename),
+            );
+          } else if (status == 'failed') {
+            final error = data['error'] as String? ?? 'Unknown error';
+            _downloadEventsController.add(
+              DownloadFailedEvent(error),
+            );
+          }
+        } catch (_) {}
+      }, onError: (e) {
+        Logger.error('WebSocket error: $e');
+      });
+    } catch (e) {
+      Logger.error('Failed to connect WebSocket: $e');
+    }
+  }
+
   /// Start a video download
   Future<DownloadResponse> startDownload({
     required String url,
@@ -73,10 +126,12 @@ class VideoDownloadService {
     String? outputPath,
   }) async {
     try {
+      final headers = {'Content-Type': 'application/json'};
+      if (AppConstants.apiKey.isNotEmpty) headers['X-API-Key'] = AppConstants.apiKey;
       final response = await _client
           .post(
-            Uri.parse('$_baseUrl/download'),
-            headers: {'Content-Type': 'application/json'},
+            Uri.parse('${AppConstants.baseUrl}/download'),
+            headers: headers,
             body: json.encode({
               'url': url,
               'format_id': formatId,
@@ -106,8 +161,10 @@ class VideoDownloadService {
   /// Get download status and progress
   Future<DownloadStatus> getDownloadStatus(String downloadId) async {
     try {
+      final headers = <String, String>{};
+      if (AppConstants.apiKey.isNotEmpty) headers['X-API-Key'] = AppConstants.apiKey;
       final response = await _client
-          .get(Uri.parse('$_baseUrl/status/$downloadId'))
+          .get(Uri.parse('${AppConstants.baseUrl}/status/$downloadId'), headers: headers)
           .timeout(_timeout);
 
       if (response.statusCode == 200) {
@@ -128,8 +185,10 @@ class VideoDownloadService {
   /// Cancel a download
   Future<void> cancelDownload(String downloadId) async {
     try {
+      final headers = <String, String>{};
+      if (AppConstants.apiKey.isNotEmpty) headers['X-API-Key'] = AppConstants.apiKey;
       final response = await _client
-          .delete(Uri.parse('$_baseUrl/download/$downloadId'))
+          .delete(Uri.parse('${AppConstants.baseUrl}/download/$downloadId'), headers: headers)
           .timeout(_timeout);
 
       if (response.statusCode != 200) {
@@ -147,8 +206,10 @@ class VideoDownloadService {
   /// Get list of all downloads
   Future<List<DownloadStatus>> getAllDownloads() async {
     try {
+      final headers = <String, String>{};
+      if (AppConstants.apiKey.isNotEmpty) headers['X-API-Key'] = AppConstants.apiKey;
       final response = await _client
-          .get(Uri.parse('$_baseUrl/downloads'))
+          .get(Uri.parse('${AppConstants.baseUrl}/downloads'), headers: headers)
           .timeout(_timeout);
 
       if (response.statusCode == 200) {
@@ -166,8 +227,11 @@ class VideoDownloadService {
   /// Download completed file to device
   Future<String> downloadFile(String downloadId, String filename) async {
     try {
+      final headers = <String, String>{};
+      if (AppConstants.apiKey.isNotEmpty) headers['X-API-Key'] = AppConstants.apiKey;
       final response = await _client.get(
-        Uri.parse('$_baseUrl/file/$downloadId'),
+        Uri.parse('${AppConstants.baseUrl}/file/$downloadId'),
+        headers: headers,
       );
 
       if (response.statusCode == 200) {
@@ -193,8 +257,10 @@ class VideoDownloadService {
   /// Clear completed downloads
   Future<void> clearDownloads() async {
     try {
+      final headers = <String, String>{};
+      if (AppConstants.apiKey.isNotEmpty) headers['X-API-Key'] = AppConstants.apiKey;
       final response = await _client
-          .delete(Uri.parse('$_baseUrl/downloads'))
+          .delete(Uri.parse('${AppConstants.baseUrl}/downloads'), headers: headers)
           .timeout(_timeout);
 
       if (response.statusCode != 200) {
@@ -209,8 +275,10 @@ class VideoDownloadService {
   /// Get system statistics
   Future<SystemStats> getSystemStats() async {
     try {
+      final headers = <String, String>{};
+      if (AppConstants.apiKey.isNotEmpty) headers['X-API-Key'] = AppConstants.apiKey;
       final response = await _client
-          .get(Uri.parse('$_baseUrl/system/stats'))
+          .get(Uri.parse('${AppConstants.baseUrl}/system/stats'), headers: headers)
           .timeout(_timeout);
 
       if (response.statusCode == 200) {
@@ -229,7 +297,7 @@ class VideoDownloadService {
   Future<bool> isServerRunning() async {
     try {
       final response = await _client
-          .get(Uri.parse('$_baseUrl/'))
+          .get(Uri.parse('${AppConstants.baseUrl}/'))
           .timeout(const Duration(seconds: 5));
 
       return response.statusCode == 200;
@@ -245,6 +313,9 @@ class VideoDownloadService {
   void dispose() {
     _downloadEventsController.close();
     _client.close();
+    try {
+      _wsChannel?.sink.close(ws_status.goingAway);
+    } catch (_) {}
   }
 }
 

@@ -31,6 +31,11 @@ class NotificationService {
       const InitializationSettings(android: androidSettings, iOS: iosSettings),
       onDidReceiveNotificationResponse: _handleNotificationTap,
     );
+
+    try {
+      final androidPlugin = _notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      await androidPlugin?.requestPermission();
+    } catch (_) {}
   }
 
   void _handleNotificationTap(NotificationResponse response) {

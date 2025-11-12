@@ -15,6 +15,8 @@ import requests
 import json
 import pkg_resources
 from pathlib import Path
+import hashlib
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -311,5 +313,44 @@ class AutoUpdater:
             "next_check": self.last_check + self.check_interval if self.last_check else None,
             "update_status": self.update_status
         }
-    
-    
+
+_instance: Optional[AutoUpdater] = None
+
+def _get_instance() -> AutoUpdater:
+    global _instance
+    if _instance is None:
+        _instance = AutoUpdater()
+    return _instance
+
+def start_auto_updater():
+    updater = _get_instance()
+    updater.start()
+
+def stop_auto_updater():
+    updater = _get_instance()
+    updater.stop()
+
+def get_auto_updater_status() -> Dict[str, Any]:
+    updater = _get_instance()
+    return updater.get_status()
+
+def configure_auto_updater(config: Dict[str, Any]):
+    updater = _get_instance()
+    try:
+        updater._validate_config(config)
+        updater.check_interval = config.get("check_interval", updater.check_interval)
+        updater.auto_update_enabled = config.get("enabled", updater.auto_update_enabled)
+        updater.notify_on_update = config.get("notify_on_update", updater.notify_on_update)
+        updater.update_on_startup = config.get("update_on_startup", updater.update_on_startup)
+        updater.silent_updates = config.get("silent_updates", updater.silent_updates)
+        updater._save_config()
+    except Exception as e:
+        logger.error(f"Failed to configure auto-updater: {e}")
+
+def force_update_check():
+    updater = _get_instance()
+    asyncio.run(updater._check_and_update_async())
+
+def force_update():
+    updater = _get_instance()
+    asyncio.run(updater._update_ytdlp_silent())

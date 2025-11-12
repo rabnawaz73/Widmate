@@ -10,6 +10,8 @@ import 'package:widmate/app/src/services/settings_export_service.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:widmate/features/downloads/domain/services/download_service.dart';
 import 'package:widmate/app/src/providers/app_providers.dart';
+import 'package:widmate/app/src/services/settings_service.dart';
+import 'package:widmate/core/constants/app_constants.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
@@ -104,6 +106,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     (value) => ref.read(settingsControllerProvider.notifier).setShowNotifications(value),
                   ),
                 ]),
+                const SizedBox(height: 24),
+                _buildBackendSettings(context, colorScheme),
                 const SizedBox(height: 24),
                 _buildStorageSettings(context, colorScheme),
                 const SizedBox(height: 24),
@@ -757,3 +761,82 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 }
+  Widget _buildBackendSettings(BuildContext context, ColorScheme colorScheme) {
+    final baseUrlController = TextEditingController(text: AppConstants.baseUrl);
+    final apiKeyController = TextEditingController(text: AppConstants.apiKey);
+    return _buildSection(context, 'Backend', Icons.cloud, [
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('API Base URL'),
+              const SizedBox(height: 8),
+              TextField(
+                controller: baseUrlController,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: 'https://your-backend-host:8000',
+                ),
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton(
+                  onPressed: () async {
+                    final url = baseUrlController.text.trim();
+                    if (url.isNotEmpty) {
+                      await SettingsService().setBaseUrl(url);
+                      AppConstants.baseUrl = url;
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Base URL saved')),
+                      );
+                    }
+                  },
+                  child: const Text('Save URL'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 12),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('API Key (optional)'),
+              const SizedBox(height: 8),
+              TextField(
+                controller: apiKeyController,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: 'Enter API key',
+                ),
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton(
+                  onPressed: () async {
+                    final key = apiKeyController.text.trim();
+                    await SettingsService().setApiKey(key);
+                    AppConstants.apiKey = key;
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('API key saved')),
+                    );
+                  },
+                  child: const Text('Save Key'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ]);
+  }

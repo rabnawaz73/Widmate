@@ -1,17 +1,19 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:widmate/core/constants/app_constants.dart';
 
 class SearchService {
-  static const String _baseUrl = 'http://localhost:8000';
   static const Duration _timeout = Duration(seconds: 30);
 
   /// Search for videos using yt-dlp
   Future<SearchResponse> searchVideos(String query, {int limit = 10}) async {
     try {
+      final headers = {'Content-Type': 'application/json'};
+      if (AppConstants.apiKey.isNotEmpty) headers['X-API-Key'] = AppConstants.apiKey;
       final response = await http
           .post(
-            Uri.parse('$_baseUrl/search'),
-            headers: {'Content-Type': 'application/json'},
+            Uri.parse('${AppConstants.baseUrl}/search'),
+            headers: headers,
             body: json.encode({'query': query, 'limit': limit}),
           )
           .timeout(_timeout);

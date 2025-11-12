@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class SettingsService {
   static const String _baseUrlKey = 'baseUrl';
   static const String _defaultBaseUrl = 'http://127.0.0.1:8000';
+  static const String _apiKeyKey = 'apiKey';
 
   Future<String> getBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
@@ -13,6 +14,16 @@ class SettingsService {
   Future<void> setBaseUrl(String baseUrl) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_baseUrlKey, baseUrl);
+  }
+
+  Future<String?> getApiKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_apiKeyKey);
+  }
+
+  Future<void> setApiKey(String apiKey) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_apiKeyKey, apiKey);
   }
 }
 

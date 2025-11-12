@@ -95,9 +95,12 @@ class BackgroundDownloadService {
   Future<void> startBackgroundDownload(DownloadItem download) async {
     try {
       await _channel.invokeMethod('startDownload', {
-        'downloadId': download.id,
+        'id': download.id,
         'url': download.url,
         'title': download.title,
+        'fileName': download.fileName ?? '${download.title}.mp4',
+        'filePath': download.filePath ?? '',
+        'platform': download.platform.toString().split('.').last,
       });
     } catch (e) {
       debugPrint('Failed to start background download: $e');

@@ -15,7 +15,8 @@ class AppConstants {
   static const String appDescription = 'A powerful video downloader app';
 
   // API Configuration
-  static String baseUrl = 'http://127.0.0.1:8000'; // This will be updated on startup
+  static String baseUrl = 'http://127.0.0.1:8000';
+  static String apiKey = '';
   static const Duration apiTimeout = Duration(seconds: 30);
   static const Duration shortTimeout = Duration(seconds: 5);
   static const Duration longTimeout = Duration(minutes: 2);

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, UploadFile, File
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -70,23 +70,38 @@ async def shutdown_event():
 rate_limit_storage = defaultdict(list)
 RATE_LIMIT_WINDOW = 60  # 1 minute
 RATE_LIMIT_MAX_REQUESTS = 30
+REQUIRE_API_KEY = os.getenv("REQUIRE_API_KEY", "false").lower() == "true"
+API_KEYS = set([k.strip() for k in os.getenv("API_KEYS", "").split(",") if k.strip()])
 
-def check_rate_limit(client_ip: str, max_requests: int = RATE_LIMIT_MAX_REQUESTS) -> bool:
+def check_rate_limit(client_key: str, max_requests: int = RATE_LIMIT_MAX_REQUESTS) -> bool:
     """Simple rate limiting check"""
     now = time.time()
     # Clean old requests
-    rate_limit_storage[client_ip] = [
-        req_time for req_time in rate_limit_storage[client_ip]
+    rate_limit_storage[client_key] = [
+        req_time for req_time in rate_limit_storage[client_key]
         if now - req_time < RATE_LIMIT_WINDOW
     ]
     
     # Check if limit exceeded
-    if len(rate_limit_storage[client_ip]) >= max_requests:
+    if len(rate_limit_storage[client_key]) >= max_requests:
         return False
     
     # Add current request
-    rate_limit_storage[client_ip].append(now)
+    rate_limit_storage[client_key].append(now)
     return True
+
+def get_client_key(request: Request) -> str:
+    api_key = request.headers.get("X-API-Key") or request.query_params.get("api_key")
+    if api_key:
+        return f"key:{api_key}"
+    return f"ip:{request.client.host if request.client else 'unknown'}"
+
+def enforce_auth(request: Request):
+    if not REQUIRE_API_KEY:
+        return
+    api_key = request.headers.get("X-API-Key") or request.query_params.get("api_key")
+    if not api_key or api_key not in API_KEYS:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
 # CORS middleware
 origins = [
@@ -110,6 +125,55 @@ from storage import save_download_tasks, load_download_tasks
 # Global storage for download tasks
 download_tasks: Dict[str, Dict[str, Any]] = load_download_tasks()
 download_lock = threading.Lock()
+ws_clients: List[WebSocket] = []
+EVENT_LOOP: Optional[asyncio.AbstractEventLoop] = None
+event_queue: Optional[asyncio.Queue] = None
+download_queue: Optional[asyncio.Queue] = None
+workers: List[asyncio.Task] = []
+MAX_WORKERS = int(os.getenv("MAX_CONCURRENT_DOWNLOADS", "3"))
+
+@app.on_event("startup")
+async def startup_ws_event():
+    global EVENT_LOOP, event_queue
+    try:
+        EVENT_LOOP = asyncio.get_running_loop()
+        event_queue = asyncio.Queue()
+        async def _broadcast_events():
+            while True:
+                event = await event_queue.get()
+                stale = []
+                for ws in ws_clients:
+                    try:
+                        await ws.send_json(event)
+                    except Exception:
+                        stale.append(ws)
+                for ws in stale:
+                    try:
+                        ws_clients.remove(ws)
+                    except ValueError:
+                        pass
+        asyncio.create_task(_broadcast_events())
+    except Exception as e:
+        logger.error(f"Failed to start WebSocket broadcaster: {e}")
+
+@app.on_event("startup")
+async def startup_workers_event():
+    global download_queue, workers
+    try:
+        download_queue = asyncio.Queue()
+        async def _worker():
+            while True:
+                job = await download_queue.get()
+                try:
+                    download_id, url, ydl_opts = job
+                    loop = asyncio.get_running_loop()
+                    await loop.run_in_executor(None, lambda: download_video_task(download_id, url, ydl_opts))
+                finally:
+                    download_queue.task_done()
+        for _ in range(MAX_WORKERS):
+            workers.append(asyncio.create_task(_worker()))
+    except Exception as e:
+        logger.error(f"Failed to start workers: {e}")
 
 # Create directories
 DOWNLOADS_DIR = Path(os.getenv("DOWNLOADS_DIR", "downloads"))
@@ -198,10 +262,10 @@ class SearchResponse(BaseModel):
     search_time: float
 
 # yt-dlp configuration
-def get_ydl_opts(download_id: str, format_id: Optional[str] = None, quality: str = "720p", audio_only: bool = False) -> Dict[str, Any]:
+def get_ydl_opts(download_id: str, format_id: Optional[str] = None, quality: str = "720p", audio_only: bool = False, output_path: Optional[str] = None) -> Dict[str, Any]:
     """Get yt-dlp options based on format_id or quality preference"""
     
-    output_template = str(DOWNLOADS_DIR / f"{download_id}_%(title)s.%(ext)s")
+    output_template = str((Path(output_path) if output_path else DOWNLOADS_DIR) / f"{download_id}_%(title)s.%(ext)s")
     
     if format_id:
         format_selector = format_id
@@ -209,23 +273,24 @@ def get_ydl_opts(download_id: str, format_id: Optional[str] = None, quality: str
         format_selector = "bestaudio/best"
     else:
         quality_map = {
-            "480p": "best[height<=480]",
-            "720p": "best[height<=720]", 
-            "1080p": "best[height<=1080]",
-            "best": "best" # Add a 'best' option for video
+            "480p": "bv*[height<=480]+ba/best[height<=480]",
+            "720p": "bv*[height<=720]+ba/best[height<=720]",
+            "1080p": "bv*[height<=1080]+ba/best[height<=1080]",
+            "best": "bv*+ba/best"
         }
-        format_selector = quality_map.get(quality, "best")
+        format_selector = quality_map.get(quality, "bv*+ba/best")
     
     return {
         'format': format_selector,
         'outtmpl': output_template,
+        'merge_output_format': 'mp4',
         'writeinfojson': True,
         'writesubtitles': False,
         'writeautomaticsub': False,
         'ignoreerrors': True,
         'no_warnings': False,
         'extractflat': False,
-        'max_filesize': 1024 * 1024 * 1024,  # 1GB
+        'max_filesize': 8 * 1024 * 1024 * 1024,
     }
 
 def progress_hook(d: Dict[str, Any], download_id: str):
@@ -238,7 +303,10 @@ def progress_hook(d: Dict[str, Any], download_id: str):
         
         if d['status'] == 'downloading':
             task['status'] = 'downloading'
-            task['progress'] = d.get('_percent_str', '0%').replace('%', '')
+            try:
+                task['progress'] = float(str(d.get('_percent_str', '0%')).strip().strip('%'))
+            except Exception:
+                task['progress'] = 0.0
             task['speed'] = d.get('_speed_str', 'N/A')
             task['eta'] = d.get('_eta_str', 'N/A')
             task['downloaded_bytes'] = d.get('downloaded_bytes', 0)
@@ -257,6 +325,35 @@ def progress_hook(d: Dict[str, Any], download_id: str):
         
         task['updated_at'] = datetime.now()
         save_download_tasks(download_tasks)
+    try:
+        if EVENT_LOOP and event_queue:
+            EVENT_LOOP.call_soon_threadsafe(
+                lambda: event_queue.put_nowait({
+                    'id': download_id,
+                    'status': download_tasks.get(download_id, {}).get('status'),
+                    'progress': download_tasks.get(download_id, {}).get('progress'),
+                    'speed': download_tasks.get(download_id, {}).get('speed'),
+                    'eta': download_tasks.get(download_id, {}).get('eta'),
+                    'downloaded_bytes': download_tasks.get(download_id, {}).get('downloaded_bytes'),
+                    'total_bytes': download_tasks.get(download_id, {}).get('total_bytes'),
+                    'filename': download_tasks.get(download_id, {}).get('filename'),
+                })
+            )
+    except Exception:
+        pass
+
+@app.websocket("/ws")
+async def websocket_endpoint(ws: WebSocket):
+    await ws.accept()
+    ws_clients.append(ws)
+    try:
+        while True:
+            await ws.receive_text()
+    except WebSocketDisconnect:
+        try:
+            ws_clients.remove(ws)
+        except ValueError:
+            pass
 
 def download_video_task(download_id: str, url: str, ydl_opts: Dict[str, Any]):
     """Background task to download video"""
@@ -387,8 +484,9 @@ async def check_version(request: Request, force: bool = False):
     global version_info
     
     # Rate limiting
-    client_ip = request.client.host if request.client else "unknown"
-    if not check_rate_limit(client_ip, 10):
+    enforce_auth(request)
+    client_key = get_client_key(request)
+    if not check_rate_limit(client_key, 10):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
     
     # Only check once every 30 minutes unless forced
@@ -432,8 +530,9 @@ async def update_version(request: Request, background_tasks: BackgroundTasks):
     global version_info
     
     # Rate limiting
-    client_ip = request.client.host if request.client else "unknown"
-    if not check_rate_limit(client_ip, 5):  # Stricter rate limit for updates
+    enforce_auth(request)
+    client_key = get_client_key(request)
+    if not check_rate_limit(client_key, 5):  # Stricter rate limit for updates
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
     
     # Check if update is needed
@@ -471,17 +570,13 @@ async def get_update_status():
 @app.post("/info")
 async def get_video_info(request: Request, video_request: VideoInfoRequest) -> VideoInfo:
     # Rate limiting
-    client_ip = request.client.host if request.client else "unknown"
-    if not check_rate_limit(client_ip, 30):
+    enforce_auth(request)
+    client_key = get_client_key(request)
+    if not check_rate_limit(client_key, 30):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
     """Get video metadata and available formats"""
     try:
         logger.info(f"Getting info for: {video_request.url}")
-        
-        if video_request.playlist_info and video_request.playlist_items:
-            playlist_items = video_request.playlist_items.split(',')
-            if len(playlist_items) > 50:
-                raise HTTPException(status_code=400, detail="Cannot request more than 50 playlist items")
         
         ydl_opts = {
             'quiet': True,
@@ -565,8 +660,9 @@ async def get_video_info(request: Request, video_request: VideoInfoRequest) -> V
 @app.post("/download")
 async def start_download(request: Request, download_request: DownloadRequest, background_tasks: BackgroundTasks) -> Dict[str, str]:
     # Rate limiting
-    client_ip = request.client.host if request.client else "unknown"
-    if not check_rate_limit(client_ip, 10):
+    enforce_auth(request)
+    client_key = get_client_key(request)
+    if not check_rate_limit(client_key, 10):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
     """Start video download"""
     try:
@@ -592,23 +688,26 @@ async def start_download(request: Request, download_request: DownloadRequest, ba
         
         # Get yt-dlp options
         ydl_opts = get_ydl_opts(
-            download_id, 
+            download_id,
             download_request.format_id,
-            download_request.quality, 
-            download_request.audio_only
+            download_request.quality,
+            download_request.audio_only,
+            download_request.output_path
         )
         
         # Add playlist items filter if specified
         if download_request.playlist_items:
             ydl_opts['playlist_items'] = download_request.playlist_items
         
-        # Start download in background
-        background_tasks.add_task(
-            download_video_task,
-            download_id,
-            download_request.url,
-            ydl_opts
-        )
+        if download_queue is not None:
+            await download_queue.put((download_id, download_request.url, ydl_opts))
+        else:
+            background_tasks.add_task(
+                download_video_task,
+                download_id,
+                download_request.url,
+                ydl_opts
+            )
         
         logger.info(f"Download queued: {download_id}")
         
@@ -648,11 +747,14 @@ async def get_downloaded_file(download_id: str):
         if not filename:
             raise HTTPException(status_code=404, detail="File not found")
 
-        # Security fix: Prevent path traversal
         safe_dir = Path(DOWNLOADS_DIR).resolve()
         file_path = Path(filename).resolve()
-
-        if not file_path.is_relative_to(safe_dir):
+        try:
+            common_path = os.path.commonpath([str(safe_dir), str(file_path)])
+        except Exception:
+            logger.warning(f"Invalid path encountered for download_id: {download_id}, path: {filename}")
+            raise HTTPException(status_code=404, detail="File not found")
+        if common_path != str(safe_dir):
             logger.warning(f"Path traversal attempt blocked for download_id: {download_id}, path: {filename}")
             raise HTTPException(status_code=404, detail="File not found")
 
@@ -750,15 +852,15 @@ async def search_videos(request: Request, search_request: SearchRequest) -> Sear
     start_time = time.time()
     
     try:
-        # Rate limiting
-        client_ip = request.client.host
+        enforce_auth(request)
+        client_key = get_client_key(request)
         current_time = time.time()
         
-        if client_ip in rate_limiter:
-            if current_time - rate_limiter[client_ip] < 1:  # 1 second between requests
+        if client_key in rate_limiter:
+            if current_time - rate_limiter[client_key] < 1:  # 1 second between requests
                 raise HTTPException(status_code=429, detail="Rate limit exceeded")
         
-        rate_limiter[client_ip] = current_time
+        rate_limiter[client_key] = current_time
         
         # Sanitize search query
         sanitized_query = sanitize_search_query(search_request.query)

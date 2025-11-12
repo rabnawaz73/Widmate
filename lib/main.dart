@@ -53,6 +53,10 @@ class AppInitializer {
       final baseUrl = await settingsService.getBaseUrl();
       AppConstants.baseUrl = baseUrl;
       container.read(baseUrlProvider.notifier).state = baseUrl;
+      final apiKey = await settingsService.getApiKey();
+      if (apiKey != null) {
+        AppConstants.apiKey = apiKey;
+      }
     });
 
     final downloadService = container.read(downloadServiceProvider);
